@@ -2,6 +2,7 @@ const { useState, useEffect, useCallback, useMemo } = React;
 
 // ============================================
 // FAMILY HERITAGE WEBSITE WITH FIREBASE
+// Mobile Responsive Version
 // ============================================
 
 const ADMIN_PASSWORD = "family2026"; // Change this to your desired password
@@ -20,16 +21,14 @@ function FamilyWebsite() {
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState(null);
 
-  // Load data from Firebase and listen for real-time updates
+  // Load data from Firebase
   useEffect(() => {
-    // Check if Firebase is configured
     if (!window.db) {
       console.error('Firebase not configured!');
       setIsLoading(false);
       return;
     }
 
-    // Listen for approved members
     const unsubscribeMembers = window.db.collection('members')
       .where('status', '==', 'approved')
       .onSnapshot((snapshot) => {
@@ -44,7 +43,6 @@ function FamilyWebsite() {
         setIsLoading(false);
       });
 
-    // Listen for pending members
     const unsubscribePending = window.db.collection('members')
       .where('status', '==', 'pending')
       .onSnapshot((snapshot) => {
@@ -55,20 +53,17 @@ function FamilyWebsite() {
         setPendingMembers(pendingData);
       });
 
-    // Cleanup listeners on unmount
     return () => {
       unsubscribeMembers();
       unsubscribePending();
     };
   }, []);
 
-  // Show notification
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 4000);
   };
 
-  // Add new member (to pending)
   const submitMember = async (memberData) => {
     try {
       const newMember = {
@@ -85,7 +80,6 @@ function FamilyWebsite() {
     }
   };
 
-  // Approve member
   const approveMember = async (memberId) => {
     try {
       await window.db.collection('members').doc(memberId).update({
@@ -99,7 +93,6 @@ function FamilyWebsite() {
     }
   };
 
-  // Reject member
   const rejectMember = async (memberId) => {
     try {
       await window.db.collection('members').doc(memberId).delete();
@@ -109,7 +102,6 @@ function FamilyWebsite() {
     }
   };
 
-  // Delete approved member
   const deleteMember = async (memberId) => {
     try {
       await window.db.collection('members').doc(memberId).delete();
@@ -119,7 +111,6 @@ function FamilyWebsite() {
     }
   };
 
-  // Edit member
   const editMember = async (memberId, updatedData) => {
     try {
       await window.db.collection('members').doc(memberId).update({
@@ -147,7 +138,7 @@ function FamilyWebsite() {
       pendingCount: pendingMembers.length
     }),
     
-    React.createElement('main', { style: styles.main },
+    React.createElement('main', { style: styles.main, className: 'main-content' },
       currentPage === 'home' && React.createElement(HomePage, {
         setCurrentPage: setCurrentPage,
         memberCount: members.length
@@ -192,44 +183,54 @@ function Header({ currentPage, setCurrentPage, isAdmin, pendingCount }) {
     { id: 'submit', label: 'Add Member', icon: '➕' },
     { id: 'directory', label: 'Directory', icon: '📖' },
     { id: 'tree', label: 'Family Tree', icon: '🌳' },
-    { id: 'admin', label: isAdmin ? 'Admin Panel' : 'Admin', icon: '⚙️', badge: isAdmin && pendingCount > 0 ? pendingCount : null },
+    { id: 'admin', label: isAdmin ? 'Admin' : 'Admin', icon: '⚙️', badge: isAdmin && pendingCount > 0 ? pendingCount : null },
   ];
 
+  const NavButton = ({ item }) => React.createElement('button', {
+    onClick: () => { setCurrentPage(item.id); setMenuOpen(false); },
+    style: {
+      ...styles.navItem,
+      ...(currentPage === item.id ? styles.navItemActive : {})
+    }
+  },
+    React.createElement('span', { style: styles.navIcon }, item.icon),
+    item.label,
+    item.badge && React.createElement('span', { style: styles.badge }, item.badge)
+  );
+
   return React.createElement('header', { style: styles.header },
-    React.createElement('div', { style: styles.headerInner },
+    React.createElement('div', { style: styles.headerInner, className: 'header-inner' },
       React.createElement('div', { 
         style: styles.logo, 
         onClick: () => setCurrentPage('home') 
       },
         React.createElement('span', { style: styles.logoIcon }, '🌿'),
         React.createElement('div', null,
-          React.createElement('h1', { style: styles.logoText }, 'Formusoh/Fomuso/Fomusoh Family'),
-          React.createElement('span', { style: styles.logoSubtext }, 'Heritage & Connections')
+          React.createElement('h1', { style: styles.logoText, className: 'logo-text' }, 'Formusoh/Fomuso/Fomusoh Family'),
+          React.createElement('span', { style: styles.logoSubtext, className: 'logo-subtext' }, 'Heritage & Connections')
         )
       ),
       
+      // Mobile menu button
       React.createElement('button', { 
-        style: styles.menuButton, 
+        style: styles.menuButton,
+        className: 'mobile-menu-btn',
         onClick: () => setMenuOpen(!menuOpen) 
       },
         React.createElement('span', { style: styles.menuIcon }, menuOpen ? '✕' : '☰')
       ),
       
-      React.createElement('nav', { style: {...styles.nav, ...(menuOpen ? styles.navOpen : {})} },
-        navItems.map(item => 
-          React.createElement('button', {
-            key: item.id,
-            onClick: () => { setCurrentPage(item.id); setMenuOpen(false); },
-            style: {
-              ...styles.navItem,
-              ...(currentPage === item.id ? styles.navItemActive : {})
-            }
-          },
-            React.createElement('span', { style: styles.navIcon }, item.icon),
-            item.label,
-            item.badge && React.createElement('span', { style: styles.badge }, item.badge)
-          )
-        )
+      // Desktop navigation
+      React.createElement('nav', { style: styles.nav, className: 'desktop-nav' },
+        navItems.map(item => React.createElement(NavButton, { key: item.id, item: item }))
+      ),
+      
+      // Mobile navigation
+      menuOpen && React.createElement('nav', { 
+        className: 'mobile-nav',
+        style: { display: 'flex' }
+      },
+        navItems.map(item => React.createElement(NavButton, { key: item.id, item: item }))
       )
     )
   );
@@ -240,10 +241,10 @@ function Header({ currentPage, setCurrentPage, isAdmin, pendingCount }) {
 // ============================================
 function HomePage({ setCurrentPage, memberCount }) {
   return React.createElement('div', { style: styles.homePage },
-    React.createElement('div', { style: styles.heroSection },
+    React.createElement('div', { style: styles.heroSection, className: 'hero-section' },
       React.createElement('div', { style: styles.heroContent },
-        React.createElement('h1', { style: styles.heroTitle }, 'Welcome to the Formusoh/Fomuso/Fomusoh Family Page'),
-        React.createElement('p', { style: styles.heroSubtitle },
+        React.createElement('h1', { style: styles.heroTitle, className: 'hero-title' }, 'Welcome to the Formusoh/Fomuso/Fomusoh Family Page'),
+        React.createElement('p', { style: styles.heroSubtitle, className: 'hero-subtitle' },
           'A place to connect, share, and preserve our family history for generations to come.'
         ),
         React.createElement('div', { style: styles.heroStats },
@@ -252,7 +253,7 @@ function HomePage({ setCurrentPage, memberCount }) {
             React.createElement('span', { style: styles.statLabel }, 'Family Members')
           )
         ),
-        React.createElement('div', { style: styles.heroCta },
+        React.createElement('div', { style: styles.heroCta, className: 'hero-cta' },
           React.createElement('button', {
             style: styles.primaryButton,
             onClick: () => setCurrentPage('submit')
@@ -266,24 +267,24 @@ function HomePage({ setCurrentPage, memberCount }) {
     ),
     
     React.createElement('div', { style: styles.featuresSection },
-      React.createElement('h2', { style: styles.sectionTitle }, 'Explore Our Heritage'),
-      React.createElement('div', { style: styles.featuresGrid },
+      React.createElement('h2', { style: styles.sectionTitle, className: 'section-title' }, 'Explore Our Heritage'),
+      React.createElement('div', { style: styles.featuresGrid, className: 'features-grid' },
         React.createElement(FeatureCard, {
           icon: '📖',
           title: 'Member Directory',
-          description: 'Browse all family members alphabetically. Search by name and learn about each person\'s story.',
+          description: 'Browse all family members alphabetically.',
           action: () => setCurrentPage('directory')
         }),
         React.createElement(FeatureCard, {
           icon: '🌳',
           title: 'Family Tree',
-          description: 'Visualize our family connections through an interactive tree showing relationships across generations.',
+          description: 'Visualize our family connections.',
           action: () => setCurrentPage('tree')
         }),
         React.createElement(FeatureCard, {
           icon: '➕',
           title: 'Join the Tree',
-          description: 'Add your information and photo to be included in our family directory and tree.',
+          description: 'Add your information and photo.',
           action: () => setCurrentPage('submit')
         })
       )
@@ -292,7 +293,7 @@ function HomePage({ setCurrentPage, memberCount }) {
 }
 
 function FeatureCard({ icon, title, description, action }) {
-  return React.createElement('div', { style: styles.featureCard, onClick: action },
+  return React.createElement('div', { style: styles.featureCard, className: 'feature-card', onClick: action },
     React.createElement('span', { style: styles.featureIcon }, icon),
     React.createElement('h3', { style: styles.featureTitle }, title),
     React.createElement('p', { style: styles.featureDescription }, description),
@@ -334,7 +335,6 @@ function SubmitPage({ onSubmit }) {
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        // Compress image for Firebase
         const img = new Image();
         img.onload = () => {
           const canvas = document.createElement('canvas');
@@ -389,11 +389,11 @@ function SubmitPage({ onSubmit }) {
   };
 
   return React.createElement('div', { style: styles.submitPage },
-    React.createElement('div', { style: styles.formContainer },
+    React.createElement('div', { style: styles.formContainer, className: 'form-container' },
       React.createElement('div', { style: styles.formHeader },
-        React.createElement('h1', { style: styles.formTitle }, 'Join Our Family Tree'),
+        React.createElement('h1', { style: styles.formTitle, className: 'form-title' }, 'Join Our Family Tree'),
         React.createElement('p', { style: styles.formSubtitle },
-          'Submit your information to be added to our family directory. An administrator will review and approve your submission.'
+          'Submit your information to be added to our family directory.'
         )
       ),
 
@@ -417,7 +417,7 @@ function SubmitPage({ onSubmit }) {
           React.createElement('span', { style: styles.photoHint }, 'Optional - Max 2MB')
         ),
 
-        React.createElement('div', { style: styles.formGrid },
+        React.createElement('div', { style: styles.formGrid, className: 'form-grid' },
           React.createElement(FormField, {
             label: 'First Name *',
             value: formData.firstName,
@@ -433,31 +433,31 @@ function SubmitPage({ onSubmit }) {
             placeholder: 'Your last name'
           }),
           React.createElement(FormField, {
-            label: 'Nickname / Other Name',
+            label: 'Nickname',
             value: formData.nickname,
             onChange: (v) => handleChange('nickname', v),
-            placeholder: 'Any other name you go by'
+            placeholder: 'Other name (optional)'
           }),
           React.createElement(FormField, {
             label: 'Relation to Family *',
             value: formData.relation,
             onChange: (v) => handleChange('relation', v),
             error: errors.relation,
-            placeholder: 'e.g., Son of John Smith, Cousin'
+            placeholder: 'e.g., Son of John Smith'
           }),
           React.createElement(FormField, {
             label: "Father's Name *",
             value: formData.fatherName,
             onChange: (v) => handleChange('fatherName', v),
             error: errors.fatherName,
-            placeholder: "Your father's full name"
+            placeholder: "Father's full name"
           }),
           React.createElement(FormField, {
             label: "Mother's Name *",
             value: formData.motherName,
             onChange: (v) => handleChange('motherName', v),
             error: errors.motherName,
-            placeholder: "Your mother's full name"
+            placeholder: "Mother's full name"
           })
         ),
 
@@ -467,8 +467,8 @@ function SubmitPage({ onSubmit }) {
             value: formData.bio,
             onChange: (e) => handleChange('bio', e.target.value),
             style: {...styles.textarea, ...(errors.bio ? styles.inputError : {})},
-            placeholder: 'Share a short paragraph about yourself - your interests, achievements, or anything you\'d like family members to know...',
-            rows: 5
+            placeholder: 'Share a short paragraph about yourself...',
+            rows: 4
           }),
           errors.bio && React.createElement('span', { style: styles.errorText }, errors.bio)
         ),
@@ -528,7 +528,6 @@ function DirectoryPage({ members }) {
     });
   }, [members, searchTerm, sortOrder]);
 
-  // Group by first letter
   const groupedMembers = useMemo(() => {
     const groups = {};
     filteredAndSortedMembers.forEach(member => {
@@ -543,18 +542,18 @@ function DirectoryPage({ members }) {
 
   return React.createElement('div', { style: styles.directoryPage },
     React.createElement('div', { style: styles.directoryHeader },
-      React.createElement('h1', { style: styles.pageTitle }, 'Family Directory'),
+      React.createElement('h1', { style: styles.pageTitle, className: 'page-title' }, 'Family Directory'),
       React.createElement('p', { style: styles.pageSubtitle },
-        `${members.length} family members • Sorted alphabetically by last name`
+        `${members.length} family members`
       )
     ),
 
-    React.createElement('div', { style: styles.directoryControls },
-      React.createElement('div', { style: styles.searchBox },
+    React.createElement('div', { style: styles.directoryControls, className: 'directory-controls' },
+      React.createElement('div', { style: styles.searchBox, className: 'search-box' },
         React.createElement('span', { style: styles.searchIcon }, '🔍'),
         React.createElement('input', {
           type: 'text',
-          placeholder: 'Search by name, relation, or parents...',
+          placeholder: 'Search by name...',
           value: searchTerm,
           onChange: (e) => setSearchTerm(e.target.value),
           style: styles.searchInput
@@ -562,6 +561,7 @@ function DirectoryPage({ members }) {
       ),
       React.createElement('button', {
         style: styles.sortButton,
+        className: 'sort-button',
         onClick: () => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')
       }, sortOrder === 'asc' ? '↓ A-Z' : '↑ Z-A')
     ),
@@ -574,8 +574,8 @@ function DirectoryPage({ members }) {
           ),
           React.createElement('p', { style: styles.emptyText },
             members.length === 0 
-              ? 'Be the first to add your information to the family directory!'
-              : 'Try adjusting your search terms.'
+              ? 'Be the first to add your information!'
+              : 'Try adjusting your search.'
           )
         )
       : React.createElement('div', { style: styles.directoryGrid },
@@ -603,7 +603,7 @@ function DirectoryPage({ members }) {
 }
 
 function MemberCard({ member, onClick }) {
-  return React.createElement('div', { style: styles.memberCard, onClick: onClick },
+  return React.createElement('div', { style: styles.memberCard, className: 'member-card', onClick: onClick },
     React.createElement('div', { style: styles.memberPhoto },
       member.photo
         ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.memberPhotoImg })
@@ -622,11 +622,11 @@ function MemberCard({ member, onClick }) {
 
 function MemberModal({ member, onClose }) {
   return React.createElement('div', { style: styles.modalOverlay, onClick: onClose },
-    React.createElement('div', { style: styles.modal, onClick: e => e.stopPropagation() },
+    React.createElement('div', { style: styles.modal, className: 'modal', onClick: e => e.stopPropagation() },
       React.createElement('button', { style: styles.modalClose, onClick: onClose }, '✕'),
       
-      React.createElement('div', { style: styles.modalContent },
-        React.createElement('div', { style: styles.modalPhoto },
+      React.createElement('div', { style: styles.modalContent, className: 'modal-content' },
+        React.createElement('div', { style: styles.modalPhoto, className: 'modal-photo' },
           member.photo
             ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.modalPhotoImg })
             : React.createElement('div', { style: styles.modalPhotoPlaceholder },
@@ -635,10 +635,10 @@ function MemberModal({ member, onClose }) {
         ),
         
         React.createElement('div', { style: styles.modalInfo },
-          React.createElement('h2', { style: styles.modalName }, member.fullName),
-          member.nickname && React.createElement('p', { style: styles.modalNickname }, `Also known as "${member.nickname}"`),
+          React.createElement('h2', { style: styles.modalName, className: 'modal-name' }, member.fullName),
+          member.nickname && React.createElement('p', { style: styles.modalNickname }, `"${member.nickname}"`),
           
-          React.createElement('div', { style: styles.modalDetails },
+          React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
             React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel }, 'Relation'),
               React.createElement('span', { style: styles.detailValue }, member.relation)
@@ -671,7 +671,6 @@ function FamilyTreePage({ members }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
 
-  // Build family relationships
   const familyData = useMemo(() => {
     const people = {};
     
@@ -724,7 +723,7 @@ function FamilyTreePage({ members }) {
     const hasChildren = person.children.length > 0;
     const isExpanded = expandedNodes.has(personName);
 
-    return React.createElement('div', { key: personName, style: { ...styles.treeNode, marginLeft: level * 24 } },
+    return React.createElement('div', { key: personName, style: { ...styles.treeNode, marginLeft: Math.min(level * 20, 60) } },
       React.createElement('div', {
         style: styles.treeNodeContent,
         onClick: () => hasChildren && toggleNode(personName)
@@ -757,39 +756,41 @@ function FamilyTreePage({ members }) {
 
   return React.createElement('div', { style: styles.treePage },
     React.createElement('div', { style: styles.treeHeader },
-      React.createElement('h1', { style: styles.pageTitle }, 'Family Tree'),
+      React.createElement('h1', { style: styles.pageTitle, className: 'page-title' }, 'Family Tree'),
       React.createElement('p', { style: styles.pageSubtitle },
-        'Explore our family connections • Click on ▶ to expand branches'
+        'Click ▶ to expand branches'
       )
     ),
 
-    React.createElement('div', { style: styles.treeControls },
+    React.createElement('div', { style: styles.treeControls, className: 'tree-controls' },
       React.createElement('button', {
         style: {...styles.viewButton, ...(viewMode === 'visual' ? styles.viewButtonActive : {})},
         onClick: () => setViewMode('visual')
-      }, '🌳 Tree View'),
+      }, '🌳 Tree'),
       React.createElement('button', {
         style: {...styles.viewButton, ...(viewMode === 'list' ? styles.viewButtonActive : {})},
         onClick: () => setViewMode('list')
-      }, '📋 List View'),
-      React.createElement('button', {
-        style: styles.expandButton,
-        onClick: () => setExpandedNodes(new Set(Object.keys(familyData.people)))
-      }, 'Expand All'),
-      React.createElement('button', {
-        style: styles.collapseButton,
-        onClick: () => setExpandedNodes(new Set())
-      }, 'Collapse All')
+      }, '📋 List'),
+      React.createElement('div', { style: styles.expandCollapseGroup, className: 'expand-collapse-btns' },
+        React.createElement('button', {
+          style: styles.expandButton,
+          onClick: () => setExpandedNodes(new Set(Object.keys(familyData.people)))
+        }, 'Expand'),
+        React.createElement('button', {
+          style: styles.collapseButton,
+          onClick: () => setExpandedNodes(new Set())
+        }, 'Collapse')
+      )
     ),
 
     members.length === 0
       ? React.createElement('div', { style: styles.emptyState },
           React.createElement('span', { style: styles.emptyIcon }, '🌱'),
-          React.createElement('h3', { style: styles.emptyTitle }, 'The tree is waiting to grow'),
-          React.createElement('p', { style: styles.emptyText }, 'Add family members to see the family tree!')
+          React.createElement('h3', { style: styles.emptyTitle }, 'No members yet'),
+          React.createElement('p', { style: styles.emptyText }, 'Add family members to see the tree!')
         )
       : viewMode === 'visual'
-        ? React.createElement('div', { style: styles.treeContainer },
+        ? React.createElement('div', { style: styles.treeContainer, className: 'tree-container' },
             familyData.roots.map(person => renderTreeNode(person.fullName))
           )
         : React.createElement('div', { style: styles.listContainer },
@@ -797,6 +798,7 @@ function FamilyTreePage({ members }) {
               React.createElement('div', {
                 key: member.id,
                 style: styles.listItem,
+                className: 'list-item',
                 onClick: () => setSelectedPerson(member)
               },
                 React.createElement('div', { style: styles.listPhoto },
@@ -807,9 +809,9 @@ function FamilyTreePage({ members }) {
                       )
                 ),
                 React.createElement('div', { style: styles.listInfo },
-                  React.createElement('h4', { style: styles.listName }, member.fullName),
-                  React.createElement('p', { style: styles.listParents },
-                    `Parents: ${member.fatherName} & ${member.motherName}`
+                  React.createElement('h4', { style: styles.listName, className: 'list-name' }, member.fullName),
+                  React.createElement('p', { style: styles.listParents, className: 'list-parents' },
+                    `${member.fatherName} & ${member.motherName}`
                   )
                 )
               )
@@ -842,16 +844,16 @@ function AdminPage({
       setIsAdmin(true);
       setLoginError('');
     } else {
-      setLoginError('Incorrect password. Please try again.');
+      setLoginError('Incorrect password.');
     }
   };
 
   if (!isAdmin) {
     return React.createElement('div', { style: styles.adminLogin },
-      React.createElement('div', { style: styles.loginCard },
+      React.createElement('div', { style: styles.loginCard, className: 'login-card' },
         React.createElement('span', { style: styles.loginIcon }, '🔐'),
-        React.createElement('h2', { style: styles.loginTitle }, 'Admin Access'),
-        React.createElement('p', { style: styles.loginSubtitle }, 'Enter the admin password to manage submissions'),
+        React.createElement('h2', { style: styles.loginTitle, className: 'login-title' }, 'Admin Access'),
+        React.createElement('p', { style: styles.loginSubtitle }, 'Enter password to manage submissions'),
         
         React.createElement('form', { onSubmit: handleLogin, style: styles.loginForm },
           React.createElement('input', {
@@ -863,7 +865,7 @@ function AdminPage({
           }),
           loginError && React.createElement('span', { style: styles.loginError }, loginError),
           React.createElement('button', { type: 'submit', style: styles.loginButton },
-            'Access Admin Panel'
+            'Login'
           )
         ),
         React.createElement('p', { style: styles.loginHint }, 'Default: family2024')
@@ -872,30 +874,33 @@ function AdminPage({
   }
 
   return React.createElement('div', { style: styles.adminPage },
-    React.createElement('div', { style: styles.adminHeader },
+    React.createElement('div', { style: styles.adminHeader, className: 'admin-header' },
       React.createElement('div', null,
-        React.createElement('h1', { style: styles.pageTitle }, 'Admin Panel'),
-        React.createElement('p', { style: styles.pageSubtitle }, 'Manage family member submissions and approvals')
+        React.createElement('h1', { style: styles.pageTitle, className: 'page-title' }, 'Admin Panel'),
+        React.createElement('p', { style: styles.pageSubtitle }, 'Manage submissions')
       ),
       React.createElement('button', { 
-        style: styles.logoutButton, 
+        style: styles.logoutButton,
+        className: 'logout-button',
         onClick: () => setIsAdmin(false) 
       }, 'Logout')
     ),
 
-    React.createElement('div', { style: styles.adminTabs },
+    React.createElement('div', { style: styles.adminTabs, className: 'admin-tabs' },
       React.createElement('button', {
         style: {...styles.adminTab, ...(activeTab === 'pending' ? styles.adminTabActive : {})},
+        className: 'admin-tab',
         onClick: () => setActiveTab('pending')
       },
-        'Pending Approval',
+        'Pending',
         pendingMembers.length > 0 && React.createElement('span', { style: styles.tabBadge }, pendingMembers.length)
       ),
       React.createElement('button', {
         style: {...styles.adminTab, ...(activeTab === 'approved' ? styles.adminTabActive : {})},
+        className: 'admin-tab',
         onClick: () => setActiveTab('approved')
       },
-        'Approved Members',
+        'Approved ',
         React.createElement('span', { style: styles.tabCount }, `(${approvedMembers.length})`)
       )
     ),
@@ -906,7 +911,7 @@ function AdminPage({
           ? React.createElement('div', { style: styles.emptyState },
               React.createElement('span', { style: styles.emptyIcon }, '✓'),
               React.createElement('h3', { style: styles.emptyTitle }, 'All caught up!'),
-              React.createElement('p', { style: styles.emptyText }, 'No pending submissions to review.')
+              React.createElement('p', { style: styles.emptyText }, 'No pending submissions.')
             )
           : React.createElement('div', { style: styles.pendingList },
               pendingMembers.map(member =>
@@ -925,8 +930,8 @@ function AdminPage({
         approvedMembers.length === 0
           ? React.createElement('div', { style: styles.emptyState },
               React.createElement('span', { style: styles.emptyIcon }, '📭'),
-              React.createElement('h3', { style: styles.emptyTitle }, 'No approved members yet'),
-              React.createElement('p', { style: styles.emptyText }, 'Approved submissions will appear here.')
+              React.createElement('h3', { style: styles.emptyTitle }, 'No members yet'),
+              React.createElement('p', { style: styles.emptyText }, 'Approved members appear here.')
             )
           : React.createElement('div', { style: styles.approvedList },
               approvedMembers.map(member =>
@@ -935,7 +940,7 @@ function AdminPage({
                   member: member,
                   onEdit: () => setEditingMember(member),
                   onDelete: () => {
-                    if (window.confirm(`Are you sure you want to remove ${member.fullName}?`)) {
+                    if (window.confirm(`Remove ${member.fullName}?`)) {
                       onDelete(member.id);
                     }
                   }
@@ -957,8 +962,8 @@ function AdminPage({
 }
 
 function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDelete }) {
-  return React.createElement('div', { style: styles.adminCard },
-    React.createElement('div', { style: styles.adminCardHeader },
+  return React.createElement('div', { style: styles.adminCard, className: 'admin-card' },
+    React.createElement('div', { style: styles.adminCardHeader, className: 'admin-card-header' },
       React.createElement('div', { style: styles.adminCardPhoto },
         member.photo
           ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.adminCardPhotoImg })
@@ -971,28 +976,27 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
         member.nickname && React.createElement('span', { style: styles.adminCardNickname }, `"${member.nickname}"`),
         React.createElement('span', { style: styles.adminCardRelation }, member.relation)
       ),
-      React.createElement('div', { style: styles.adminCardTimestamp },
-        `Submitted: ${new Date(member.submittedAt).toLocaleDateString()}`
+      React.createElement('div', { style: styles.adminCardTimestamp, className: 'admin-card-timestamp' },
+        new Date(member.submittedAt).toLocaleDateString()
       )
     ),
     
     React.createElement('div', { style: styles.adminCardDetails },
       React.createElement('div', { style: styles.adminDetailRow },
-        React.createElement('span', { style: styles.adminDetailLabel }, 'Father:'),
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Father: '),
         React.createElement('span', null, member.fatherName)
       ),
       React.createElement('div', { style: styles.adminDetailRow },
-        React.createElement('span', { style: styles.adminDetailLabel }, 'Mother:'),
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Mother: '),
         React.createElement('span', null, member.motherName)
       )
     ),
     
     React.createElement('div', { style: styles.adminCardBio },
-      React.createElement('span', { style: styles.adminBioLabel }, 'Bio:'),
       React.createElement('p', { style: styles.adminBioText }, member.bio)
     ),
 
-    React.createElement('div', { style: styles.adminCardActions },
+    React.createElement('div', { style: styles.adminCardActions, className: 'admin-card-actions' },
       isPending
         ? [
             React.createElement('button', { key: 'approve', style: styles.approveButton, onClick: onApprove }, '✓ Approve'),
@@ -1030,13 +1034,13 @@ function EditModal({ member, onSave, onClose }) {
   };
 
   return React.createElement('div', { style: styles.modalOverlay, onClick: onClose },
-    React.createElement('div', { style: {...styles.modal, ...styles.editModal}, onClick: e => e.stopPropagation() },
+    React.createElement('div', { style: {...styles.modal, ...styles.editModal}, className: 'modal edit-modal', onClick: e => e.stopPropagation() },
       React.createElement('button', { style: styles.modalClose, onClick: onClose }, '✕'),
       
       React.createElement('h2', { style: styles.editModalTitle }, 'Edit Member'),
       
       React.createElement('div', { style: styles.editForm },
-        React.createElement('div', { style: styles.editRow },
+        React.createElement('div', { style: styles.editRow, className: 'edit-row' },
           React.createElement('div', { style: styles.editField },
             React.createElement('label', { style: styles.editLabel }, 'First Name'),
             React.createElement('input', {
@@ -1067,7 +1071,7 @@ function EditModal({ member, onSave, onClose }) {
           })
         ),
         
-        React.createElement('div', { style: styles.editRow },
+        React.createElement('div', { style: styles.editRow, className: 'edit-row' },
           React.createElement('div', { style: styles.editField },
             React.createElement('label', { style: styles.editLabel }, "Father's Name"),
             React.createElement('input', {
@@ -1089,7 +1093,7 @@ function EditModal({ member, onSave, onClose }) {
         ),
         
         React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Relation to Family'),
+          React.createElement('label', { style: styles.editLabel }, 'Relation'),
           React.createElement('input', {
             type: 'text',
             value: formData.relation,
@@ -1104,13 +1108,13 @@ function EditModal({ member, onSave, onClose }) {
             value: formData.bio,
             onChange: (e) => handleChange('bio', e.target.value),
             style: styles.editTextarea,
-            rows: 4
+            rows: 3
           })
         ),
         
-        React.createElement('div', { style: styles.editActions },
+        React.createElement('div', { style: styles.editActions, className: 'edit-actions' },
           React.createElement('button', { style: styles.cancelButton, onClick: onClose }, 'Cancel'),
-          React.createElement('button', { style: styles.saveButton, onClick: handleSave }, 'Save Changes')
+          React.createElement('button', { style: styles.saveButton, onClick: handleSave }, 'Save')
         )
       )
     )
@@ -1123,7 +1127,7 @@ function EditModal({ member, onSave, onClose }) {
 function LoadingScreen() {
   return React.createElement('div', { style: styles.loading },
     React.createElement('div', { style: styles.loadingSpinner }),
-    React.createElement('p', { style: styles.loadingText }, 'Loading family data...')
+    React.createElement('p', { style: styles.loadingText }, 'Loading...')
   );
 }
 
@@ -1139,7 +1143,7 @@ function Notification({ message, type }) {
 function Footer() {
   return React.createElement('footer', { style: styles.footer },
     React.createElement('p', { style: styles.footerText },
-      '🌿 Our Family Heritage • Built with love for generations'
+      '🌿 Formusoh/Fomuso/Fomusoh Family Heritage'
     )
   );
 }
@@ -1152,70 +1156,64 @@ const styles = {
     minHeight: '100vh',
     display: 'flex',
     flexDirection: 'column',
-    fontFamily: "'Source Sans 3', -apple-system, BlinkMacSystemFont, sans-serif",
+    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
     backgroundColor: '#f8f6f1',
     color: '#3d3d3d',
   },
   
   header: {
     background: 'linear-gradient(135deg, #2d4a3e 0%, #3d5a4e 100%)',
-    padding: '0 24px',
+    padding: '0 16px',
     position: 'sticky',
     top: 0,
     zIndex: 100,
     boxShadow: '0 2px 20px rgba(0,0,0,0.15)',
   },
   headerInner: {
-    maxWidth: '1400px',
+    maxWidth: '1200px',
     margin: '0 auto',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     height: '70px',
-    flexWrap: 'wrap',
-    gap: '10px',
   },
   logo: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
+    gap: '10px',
     cursor: 'pointer',
     color: 'white',
   },
-  logoIcon: { fontSize: '32px' },
+  logoIcon: { fontSize: '28px' },
   logoText: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '24px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '22px',
     margin: 0,
     lineHeight: 1.2,
   },
   logoSubtext: {
-    fontSize: '12px',
+    fontSize: '11px',
     opacity: 0.8,
-    letterSpacing: '0.5px',
   },
   menuButton: {
-    display: 'none',
     background: 'none',
     border: 'none',
     color: 'white',
-    fontSize: '24px',
+    fontSize: '28px',
     cursor: 'pointer',
     padding: '8px',
+    display: 'none',
   },
-  menuIcon: { fontSize: '24px' },
+  menuIcon: { fontSize: '28px' },
   nav: {
     display: 'flex',
-    gap: '8px',
-    flexWrap: 'wrap',
+    gap: '6px',
   },
-  navOpen: { display: 'flex' },
   navItem: {
     background: 'none',
     border: 'none',
     color: 'rgba(255,255,255,0.85)',
-    padding: '10px 16px',
+    padding: '10px 14px',
     borderRadius: '8px',
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -1243,59 +1241,56 @@ const styles = {
   
   main: {
     flex: 1,
-    maxWidth: '1400px',
+    maxWidth: '1200px',
     width: '100%',
     margin: '0 auto',
-    padding: '24px',
+    padding: '20px',
   },
   
   homePage: { animation: 'fadeIn 0.5s ease' },
   heroSection: {
     background: 'linear-gradient(135deg, #f5f0e8 0%, #ebe4d8 100%)',
-    borderRadius: '24px',
-    padding: '60px 40px',
-    marginBottom: '40px',
+    borderRadius: '20px',
+    padding: '50px 30px',
+    marginBottom: '30px',
     textAlign: 'center',
     border: '1px solid rgba(0,0,0,0.05)',
   },
-  heroContent: { maxWidth: '700px', margin: '0 auto' },
+  heroContent: { maxWidth: '600px', margin: '0 auto' },
   heroTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '48px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '40px',
     color: '#2d4a3e',
-    marginBottom: '16px',
+    marginBottom: '14px',
     lineHeight: 1.2,
   },
   heroSubtitle: {
-    fontSize: '18px',
+    fontSize: '16px',
     color: '#5a6b63',
     lineHeight: 1.6,
-    marginBottom: '32px',
+    marginBottom: '28px',
   },
   heroStats: {
     display: 'flex',
     justifyContent: 'center',
-    gap: '24px',
-    marginBottom: '32px',
+    marginBottom: '28px',
   },
   statCard: {
     backgroundColor: 'white',
-    padding: '20px 32px',
-    borderRadius: '16px',
+    padding: '18px 30px',
+    borderRadius: '14px',
     boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
   },
   statNumber: {
     display: 'block',
-    fontFamily: "'Georgia', serif",
-    fontSize: '36px',
+    fontSize: '32px',
     fontWeight: 700,
     color: '#2d4a3e',
   },
-  statLabel: { fontSize: '14px', color: '#7a8a82' },
+  statLabel: { fontSize: '13px', color: '#7a8a82' },
   heroCta: {
     display: 'flex',
-    gap: '16px',
+    gap: '14px',
     justifyContent: 'center',
     flexWrap: 'wrap',
   },
@@ -1303,102 +1298,94 @@ const styles = {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '14px 28px',
+    padding: '14px 26px',
     borderRadius: '12px',
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    transition: 'all 0.2s',
   },
   secondaryButton: {
     backgroundColor: 'white',
     color: '#2d4a3e',
     border: '2px solid #2d4a3e',
-    padding: '12px 26px',
+    padding: '12px 24px',
     borderRadius: '12px',
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    transition: 'all 0.2s',
   },
   
-  featuresSection: { marginBottom: '40px' },
+  featuresSection: { marginBottom: '30px' },
   sectionTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '32px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '28px',
     color: '#2d4a3e',
     textAlign: 'center',
-    marginBottom: '32px',
+    marginBottom: '24px',
   },
   featuresGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '24px',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gap: '20px',
   },
   featureCard: {
     backgroundColor: 'white',
-    borderRadius: '20px',
-    padding: '32px',
+    borderRadius: '16px',
+    padding: '28px',
     cursor: 'pointer',
-    transition: 'all 0.3s',
     border: '1px solid rgba(0,0,0,0.05)',
     position: 'relative',
-    overflow: 'hidden',
   },
-  featureIcon: { fontSize: '40px', display: 'block', marginBottom: '16px' },
+  featureIcon: { fontSize: '36px', display: 'block', marginBottom: '14px' },
   featureTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '22px',
     fontWeight: 600,
+    fontSize: '20px',
     color: '#2d4a3e',
-    marginBottom: '12px',
+    marginBottom: '10px',
   },
   featureDescription: {
-    fontSize: '15px',
+    fontSize: '14px',
     color: '#6a7a72',
-    lineHeight: 1.6,
-    marginBottom: '16px',
+    lineHeight: 1.5,
+    marginBottom: '14px',
   },
   featureArrow: {
     position: 'absolute',
-    bottom: '24px',
-    right: '24px',
-    fontSize: '24px',
+    bottom: '20px',
+    right: '20px',
+    fontSize: '22px',
     color: '#c9a959',
     fontWeight: 600,
   },
   
   pageTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '36px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '32px',
     color: '#2d4a3e',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
-  pageSubtitle: { fontSize: '16px', color: '#6a7a72' },
+  pageSubtitle: { fontSize: '14px', color: '#6a7a72' },
   
   submitPage: { animation: 'fadeIn 0.5s ease' },
   formContainer: {
     backgroundColor: 'white',
-    borderRadius: '24px',
-    padding: '40px',
-    maxWidth: '800px',
+    borderRadius: '20px',
+    padding: '32px',
+    maxWidth: '700px',
     margin: '0 auto',
     boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
   },
-  formHeader: { textAlign: 'center', marginBottom: '32px' },
+  formHeader: { textAlign: 'center', marginBottom: '28px' },
   formTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '32px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '28px',
     color: '#2d4a3e',
     marginBottom: '8px',
   },
-  formSubtitle: { fontSize: '16px', color: '#6a7a72' },
-  form: { display: 'flex', flexDirection: 'column', gap: '24px' },
+  formSubtitle: { fontSize: '14px', color: '#6a7a72' },
+  form: { display: 'flex', flexDirection: 'column', gap: '20px' },
   photoSection: {
     display: 'flex',
     flexDirection: 'column',
@@ -1406,8 +1393,8 @@ const styles = {
     gap: '8px',
   },
   photoUpload: {
-    width: '140px',
-    height: '140px',
+    width: '120px',
+    height: '120px',
     borderRadius: '50%',
     overflow: 'hidden',
     position: 'relative',
@@ -1423,90 +1410,93 @@ const styles = {
     justifyContent: 'center',
     height: '100%',
     color: '#9aa99f',
-    fontSize: '14px',
+    fontSize: '13px',
   },
-  photoIcon: { fontSize: '32px', marginBottom: '4px' },
+  photoIcon: { fontSize: '28px', marginBottom: '4px' },
   photoInput: {
     position: 'absolute',
     inset: 0,
     opacity: 0,
     cursor: 'pointer',
   },
-  photoHint: { fontSize: '12px', color: '#9aa99f' },
+  photoHint: { fontSize: '11px', color: '#9aa99f' },
   formGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
-    gap: '20px',
+    gridTemplateColumns: 'repeat(2, 1fr)',
+    gap: '16px',
   },
-  formField: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  formFullWidth: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  label: { fontSize: '14px', fontWeight: 600, color: '#4a5a52' },
+  formField: { display: 'flex', flexDirection: 'column', gap: '5px' },
+  formFullWidth: { display: 'flex', flexDirection: 'column', gap: '5px' },
+  label: { fontSize: '13px', fontWeight: 600, color: '#4a5a52' },
   input: {
-    padding: '12px 16px',
+    padding: '12px 14px',
     border: '2px solid #e5e5e5',
     borderRadius: '10px',
-    fontSize: '16px',
+    fontSize: '15px',
     fontFamily: 'inherit',
-    transition: 'border-color 0.2s',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   inputError: { borderColor: '#d9534f' },
   textarea: {
-    padding: '12px 16px',
+    padding: '12px 14px',
     border: '2px solid #e5e5e5',
     borderRadius: '10px',
-    fontSize: '16px',
+    fontSize: '15px',
     fontFamily: 'inherit',
     resize: 'vertical',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
-  errorText: { fontSize: '12px', color: '#d9534f' },
+  errorText: { fontSize: '11px', color: '#d9534f' },
   submitButton: {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '16px 32px',
+    padding: '14px 28px',
     borderRadius: '12px',
-    fontSize: '16px',
+    fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    marginTop: '16px',
-    transition: 'all 0.2s',
+    marginTop: '12px',
   },
   submitButtonDisabled: { opacity: 0.7, cursor: 'not-allowed' },
   
   directoryPage: { animation: 'fadeIn 0.5s ease' },
-  directoryHeader: { marginBottom: '24px' },
+  directoryHeader: { marginBottom: '20px' },
   directoryControls: {
     display: 'flex',
-    gap: '16px',
-    marginBottom: '24px',
+    gap: '12px',
+    marginBottom: '20px',
     flexWrap: 'wrap',
   },
-  searchBox: { flex: 1, minWidth: '280px', position: 'relative' },
+  searchBox: { flex: 1, minWidth: '200px', position: 'relative' },
   searchIcon: {
     position: 'absolute',
-    left: '16px',
+    left: '14px',
     top: '50%',
     transform: 'translateY(-50%)',
-    fontSize: '18px',
+    fontSize: '16px',
   },
   searchInput: {
     width: '100%',
-    padding: '14px 16px 14px 48px',
+    padding: '12px 14px 12px 42px',
     border: '2px solid #e5e5e5',
-    borderRadius: '12px',
-    fontSize: '16px',
+    borderRadius: '10px',
+    fontSize: '15px',
     fontFamily: 'inherit',
     backgroundColor: 'white',
     outline: 'none',
+    boxSizing: 'border-box',
   },
   sortButton: {
     backgroundColor: 'white',
     border: '2px solid #e5e5e5',
-    padding: '14px 24px',
-    borderRadius: '12px',
+    padding: '12px 20px',
+    borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
@@ -1516,48 +1506,45 @@ const styles = {
   
   emptyState: {
     textAlign: 'center',
-    padding: '60px 20px',
-    backgroundColor: 'white',
-    borderRadius: '20px',
-  },
-  emptyIcon: { fontSize: '48px', display: 'block', marginBottom: '16px' },
-  emptyTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '24px',
-    fontWeight: 600,
-    color: '#2d4a3e',
-    marginBottom: '8px',
-  },
-  emptyText: { fontSize: '16px', color: '#7a8a82' },
-  
-  directoryGrid: { display: 'flex', flexDirection: 'column', gap: '24px' },
-  letterGroup: {
+    padding: '50px 20px',
     backgroundColor: 'white',
     borderRadius: '16px',
+  },
+  emptyIcon: { fontSize: '42px', display: 'block', marginBottom: '14px' },
+  emptyTitle: {
+    fontWeight: 600,
+    fontSize: '20px',
+    color: '#2d4a3e',
+    marginBottom: '6px',
+  },
+  emptyText: { fontSize: '14px', color: '#7a8a82' },
+  
+  directoryGrid: { display: 'flex', flexDirection: 'column', gap: '20px' },
+  letterGroup: {
+    backgroundColor: 'white',
+    borderRadius: '14px',
     overflow: 'hidden',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
   },
   letterHeader: {
     backgroundColor: '#2d4a3e',
     color: 'white',
-    padding: '12px 20px',
-    fontFamily: "'Georgia', serif",
-    fontSize: '24px',
+    padding: '10px 18px',
+    fontSize: '20px',
     fontWeight: 600,
   },
-  membersList: { padding: '8px' },
+  membersList: { padding: '6px' },
   memberCard: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    padding: '16px',
-    borderRadius: '12px',
+    gap: '14px',
+    padding: '14px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
   },
   memberPhoto: {
-    width: '56px',
-    height: '56px',
+    width: '50px',
+    height: '50px',
     borderRadius: '50%',
     overflow: 'hidden',
     flexShrink: 0,
@@ -1572,24 +1559,33 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '18px',
+    fontSize: '16px',
   },
-  memberInfo: { flex: 1 },
+  memberInfo: { flex: 1, minWidth: 0 },
   memberName: {
-    fontSize: '18px',
+    fontSize: '16px',
     fontWeight: 600,
     color: '#2d4a3e',
     marginBottom: '2px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   memberNickname: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#c9a959',
     fontStyle: 'italic',
     display: 'block',
     marginBottom: '2px',
   },
-  memberRelation: { fontSize: '14px', color: '#7a8a82' },
-  memberArrow: { fontSize: '20px', color: '#c9a959' },
+  memberRelation: { 
+    fontSize: '13px', 
+    color: '#7a8a82',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  memberArrow: { fontSize: '18px', color: '#c9a959', flexShrink: 0 },
   
   modalOverlay: {
     position: 'fixed',
@@ -1599,37 +1595,35 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    padding: '20px',
-    animation: 'fadeIn 0.2s ease',
+    padding: '16px',
   },
   modal: {
     backgroundColor: 'white',
-    borderRadius: '24px',
-    maxWidth: '600px',
+    borderRadius: '20px',
+    maxWidth: '500px',
     width: '100%',
     maxHeight: '90vh',
     overflow: 'auto',
     position: 'relative',
-    animation: 'slideIn 0.3s ease',
   },
   modalClose: {
     position: 'absolute',
-    top: '16px',
-    right: '16px',
+    top: '14px',
+    right: '14px',
     background: 'none',
     border: 'none',
-    fontSize: '24px',
+    fontSize: '22px',
     cursor: 'pointer',
     color: '#7a8a82',
     zIndex: 10,
   },
-  modalContent: { padding: '40px' },
+  modalContent: { padding: '32px' },
   modalPhoto: {
-    width: '160px',
-    height: '160px',
+    width: '140px',
+    height: '140px',
     borderRadius: '50%',
     overflow: 'hidden',
-    margin: '0 auto 24px',
+    margin: '0 auto 20px',
     border: '4px solid #c9a959',
   },
   modalPhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
@@ -1642,90 +1636,92 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '48px',
+    fontSize: '42px',
   },
   modalInfo: { textAlign: 'center' },
   modalName: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '32px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '28px',
     color: '#2d4a3e',
     marginBottom: '4px',
   },
   modalNickname: {
-    fontSize: '16px',
+    fontSize: '15px',
     color: '#c9a959',
     fontStyle: 'italic',
-    marginBottom: '24px',
+    marginBottom: '20px',
   },
   modalDetails: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '16px',
+    gap: '14px',
     backgroundColor: '#f8f6f1',
-    borderRadius: '16px',
-    padding: '20px',
-    marginBottom: '24px',
+    borderRadius: '14px',
+    padding: '16px',
+    marginBottom: '20px',
   },
-  detailItem: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  detailItem: { display: 'flex', flexDirection: 'column', gap: '3px' },
   detailLabel: {
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 600,
     color: '#9aa99f',
     textTransform: 'uppercase',
-    letterSpacing: '0.5px',
   },
-  detailValue: { fontSize: '15px', color: '#2d4a3e' },
+  detailValue: { fontSize: '14px', color: '#2d4a3e' },
   modalBio: { textAlign: 'left' },
   bioLabel: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 600,
     color: '#4a5a52',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
-  bioText: { fontSize: '16px', color: '#5a6b63', lineHeight: 1.7 },
+  bioText: { fontSize: '14px', color: '#5a6b63', lineHeight: 1.6 },
   
   treePage: { animation: 'fadeIn 0.5s ease' },
-  treeHeader: { marginBottom: '24px' },
+  treeHeader: { marginBottom: '20px' },
   treeControls: {
     display: 'flex',
-    gap: '12px',
-    marginBottom: '24px',
+    gap: '10px',
+    marginBottom: '20px',
     flexWrap: 'wrap',
+    alignItems: 'center',
   },
   viewButton: {
     backgroundColor: 'white',
     border: '2px solid #e5e5e5',
-    padding: '12px 20px',
+    padding: '10px 16px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
     color: '#4a5a52',
-    transition: 'all 0.2s',
   },
   viewButtonActive: {
     backgroundColor: '#2d4a3e',
     borderColor: '#2d4a3e',
     color: 'white',
   },
+  expandCollapseGroup: {
+    display: 'flex',
+    gap: '8px',
+    marginLeft: 'auto',
+  },
   expandButton: {
     backgroundColor: '#f8f6f1',
     border: '2px solid #e5e5e5',
-    padding: '12px 16px',
+    padding: '10px 14px',
     borderRadius: '10px',
     fontSize: '13px',
     fontWeight: 500,
     cursor: 'pointer',
     fontFamily: 'inherit',
     color: '#6a7a72',
-    marginLeft: 'auto',
   },
   collapseButton: {
     backgroundColor: '#f8f6f1',
     border: '2px solid #e5e5e5',
-    padding: '12px 16px',
+    padding: '10px 14px',
     borderRadius: '10px',
     fontSize: '13px',
     fontWeight: 500,
@@ -1735,24 +1731,24 @@ const styles = {
   },
   treeContainer: {
     backgroundColor: 'white',
-    borderRadius: '20px',
-    padding: '24px',
-    minHeight: '400px',
+    borderRadius: '16px',
+    padding: '20px',
+    minHeight: '300px',
+    overflowX: 'auto',
   },
-  treeNode: { marginBottom: '8px' },
-  treeNodeContent: { display: 'flex', alignItems: 'center', gap: '8px' },
-  treeToggle: { fontSize: '12px', color: '#9aa99f', width: '16px', cursor: 'pointer' },
+  treeNode: { marginBottom: '6px' },
+  treeNodeContent: { display: 'flex', alignItems: 'center', gap: '6px' },
+  treeToggle: { fontSize: '11px', color: '#9aa99f', width: '14px', cursor: 'pointer' },
   treeNodeCard: {
     display: 'flex',
     alignItems: 'center',
-    gap: '12px',
-    padding: '10px 16px',
+    gap: '10px',
+    padding: '8px 14px',
     backgroundColor: '#f8f6f1',
     borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
   },
-  treePhoto: { width: '40px', height: '40px', borderRadius: '50%', overflow: 'hidden' },
+  treePhoto: { width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 },
   treePhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
   treePhotoPlaceholder: {
     width: '100%',
@@ -1763,32 +1759,38 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '14px',
+    fontSize: '12px',
   },
-  treeInfo: { display: 'flex', flexDirection: 'column' },
-  treeName: { fontSize: '15px', fontWeight: 600, color: '#2d4a3e' },
-  treeNickname: { fontSize: '12px', color: '#c9a959', fontStyle: 'italic' },
+  treeInfo: { display: 'flex', flexDirection: 'column', minWidth: 0 },
+  treeName: { 
+    fontSize: '14px', 
+    fontWeight: 600, 
+    color: '#2d4a3e',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  treeNickname: { fontSize: '11px', color: '#c9a959', fontStyle: 'italic' },
   treeChildren: {
-    marginTop: '8px',
-    paddingLeft: '24px',
+    marginTop: '6px',
+    paddingLeft: '20px',
     borderLeft: '2px solid #e5e5e5',
-    marginLeft: '7px',
+    marginLeft: '6px',
   },
   
-  listContainer: { backgroundColor: 'white', borderRadius: '20px', padding: '16px' },
+  listContainer: { backgroundColor: 'white', borderRadius: '16px', padding: '12px' },
   listItem: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    padding: '16px',
-    borderRadius: '12px',
+    gap: '14px',
+    padding: '14px',
+    borderRadius: '10px',
     cursor: 'pointer',
-    transition: 'background-color 0.2s',
     borderBottom: '1px solid #f0f0f0',
   },
   listPhoto: {
-    width: '50px',
-    height: '50px',
+    width: '44px',
+    height: '44px',
     borderRadius: '50%',
     overflow: 'hidden',
     flexShrink: 0,
@@ -1803,75 +1805,88 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '16px',
+    fontSize: '14px',
   },
-  listInfo: { flex: 1 },
-  listName: { fontSize: '16px', fontWeight: 600, color: '#2d4a3e', marginBottom: '2px' },
-  listParents: { fontSize: '13px', color: '#7a8a82', margin: 0 },
+  listInfo: { flex: 1, minWidth: 0 },
+  listName: { 
+    fontSize: '15px', 
+    fontWeight: 600, 
+    color: '#2d4a3e', 
+    marginBottom: '2px',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  listParents: { 
+    fontSize: '12px', 
+    color: '#7a8a82', 
+    margin: 0,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
   
   adminLogin: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     minHeight: '60vh',
-    animation: 'fadeIn 0.5s ease',
   },
   loginCard: {
     backgroundColor: 'white',
-    borderRadius: '24px',
-    padding: '48px',
-    maxWidth: '400px',
+    borderRadius: '20px',
+    padding: '40px',
+    maxWidth: '360px',
     width: '100%',
     textAlign: 'center',
     boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
   },
-  loginIcon: { fontSize: '48px', marginBottom: '16px' },
+  loginIcon: { fontSize: '42px', marginBottom: '14px' },
   loginTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '28px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '24px',
     color: '#2d4a3e',
-    marginBottom: '8px',
+    marginBottom: '6px',
   },
-  loginSubtitle: { fontSize: '15px', color: '#7a8a82', marginBottom: '24px' },
-  loginForm: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  loginSubtitle: { fontSize: '14px', color: '#7a8a82', marginBottom: '20px' },
+  loginForm: { display: 'flex', flexDirection: 'column', gap: '14px' },
   loginInput: {
-    padding: '14px 16px',
+    padding: '12px 14px',
     border: '2px solid #e5e5e5',
-    borderRadius: '12px',
-    fontSize: '16px',
+    borderRadius: '10px',
+    fontSize: '15px',
     fontFamily: 'inherit',
     textAlign: 'center',
     outline: 'none',
   },
-  loginError: { fontSize: '14px', color: '#d9534f' },
+  loginError: { fontSize: '13px', color: '#d9534f' },
   loginButton: {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '14px 24px',
-    borderRadius: '12px',
-    fontSize: '16px',
+    padding: '12px 20px',
+    borderRadius: '10px',
+    fontSize: '15px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  loginHint: { fontSize: '12px', color: '#9aa99f', marginTop: '16px' },
+  loginHint: { fontSize: '11px', color: '#9aa99f', marginTop: '14px' },
   
   adminPage: { animation: 'fadeIn 0.5s ease' },
   adminHeader: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: '24px',
+    marginBottom: '20px',
     flexWrap: 'wrap',
-    gap: '16px',
+    gap: '14px',
   },
   logoutButton: {
     backgroundColor: '#f8f6f1',
     color: '#6a7a72',
     border: '2px solid #e5e5e5',
-    padding: '10px 20px',
+    padding: '10px 18px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
@@ -1881,17 +1896,17 @@ const styles = {
   adminTabs: {
     display: 'flex',
     gap: '8px',
-    marginBottom: '24px',
+    marginBottom: '20px',
     borderBottom: '2px solid #e5e5e5',
-    paddingBottom: '16px',
+    paddingBottom: '14px',
     flexWrap: 'wrap',
   },
   adminTab: {
     backgroundColor: 'transparent',
     border: 'none',
-    padding: '12px 24px',
+    padding: '10px 20px',
     borderRadius: '10px',
-    fontSize: '15px',
+    fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -1899,38 +1914,37 @@ const styles = {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    transition: 'all 0.2s',
   },
   adminTabActive: { backgroundColor: '#2d4a3e', color: 'white' },
   tabBadge: {
     backgroundColor: '#c9a959',
     color: 'white',
-    fontSize: '12px',
+    fontSize: '11px',
     fontWeight: 700,
-    padding: '2px 8px',
+    padding: '2px 7px',
     borderRadius: '10px',
   },
-  tabCount: { fontSize: '13px', opacity: 0.7 },
-  adminContent: { minHeight: '400px' },
-  pendingList: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  approvedList: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  tabCount: { fontSize: '12px', opacity: 0.7 },
+  adminContent: { minHeight: '300px' },
+  pendingList: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  approvedList: { display: 'flex', flexDirection: 'column', gap: '14px' },
   
   adminCard: {
     backgroundColor: 'white',
-    borderRadius: '16px',
-    padding: '24px',
-    boxShadow: '0 2px 12px rgba(0,0,0,0.04)',
+    borderRadius: '14px',
+    padding: '20px',
+    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
   },
   adminCardHeader: {
     display: 'flex',
     alignItems: 'flex-start',
-    gap: '16px',
-    marginBottom: '16px',
+    gap: '14px',
+    marginBottom: '14px',
     flexWrap: 'wrap',
   },
   adminCardPhoto: {
-    width: '64px',
-    height: '64px',
+    width: '56px',
+    height: '56px',
     borderRadius: '50%',
     overflow: 'hidden',
     flexShrink: 0,
@@ -1945,136 +1959,139 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '20px',
+    fontSize: '18px',
   },
-  adminCardInfo: { flex: 1, minWidth: '200px' },
+  adminCardInfo: { flex: 1, minWidth: '150px' },
   adminCardName: {
-    fontSize: '20px',
+    fontSize: '18px',
     fontWeight: 600,
     color: '#2d4a3e',
-    marginBottom: '4px',
+    marginBottom: '3px',
   },
   adminCardNickname: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#c9a959',
     fontStyle: 'italic',
     display: 'block',
-    marginBottom: '4px',
+    marginBottom: '3px',
   },
-  adminCardRelation: { fontSize: '14px', color: '#7a8a82' },
-  adminCardTimestamp: { fontSize: '12px', color: '#9aa99f', marginLeft: 'auto' },
+  adminCardRelation: { fontSize: '13px', color: '#7a8a82' },
+  adminCardTimestamp: { fontSize: '11px', color: '#9aa99f', marginLeft: 'auto' },
   adminCardDetails: {
     display: 'flex',
-    gap: '24px',
-    marginBottom: '16px',
+    gap: '20px',
+    marginBottom: '14px',
     flexWrap: 'wrap',
   },
-  adminDetailRow: { display: 'flex', gap: '8px', fontSize: '14px' },
+  adminDetailRow: { display: 'flex', gap: '6px', fontSize: '13px' },
   adminDetailLabel: { fontWeight: 600, color: '#4a5a52' },
   adminCardBio: {
     backgroundColor: '#f8f6f1',
-    borderRadius: '12px',
-    padding: '16px',
-    marginBottom: '16px',
+    borderRadius: '10px',
+    padding: '14px',
+    marginBottom: '14px',
   },
-  adminBioLabel: {
-    fontSize: '12px',
-    fontWeight: 600,
-    color: '#9aa99f',
-    textTransform: 'uppercase',
-    display: 'block',
-    marginBottom: '8px',
-  },
-  adminBioText: { fontSize: '14px', color: '#5a6b63', lineHeight: 1.6, margin: 0 },
-  adminCardActions: { display: 'flex', gap: '12px', flexWrap: 'wrap' },
+  adminBioText: { fontSize: '13px', color: '#5a6b63', lineHeight: 1.5, margin: 0 },
+  adminCardActions: { display: 'flex', gap: '10px', flexWrap: 'wrap' },
   approveButton: {
     backgroundColor: '#2d5a3d',
     color: 'white',
     border: 'none',
-    padding: '10px 20px',
+    padding: '10px 18px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    flex: 1,
+    minWidth: '100px',
   },
   rejectButton: {
     backgroundColor: '#d9534f',
     color: 'white',
     border: 'none',
-    padding: '10px 20px',
+    padding: '10px 18px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    flex: 1,
+    minWidth: '100px',
   },
   editButton: {
     backgroundColor: '#c9a959',
     color: 'white',
     border: 'none',
-    padding: '10px 20px',
+    padding: '10px 18px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    flex: 1,
+    minWidth: '100px',
   },
   deleteButton: {
     backgroundColor: '#f8f6f1',
     color: '#d9534f',
     border: '2px solid #d9534f',
-    padding: '8px 18px',
+    padding: '8px 16px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    flex: 1,
+    minWidth: '100px',
   },
   
-  editModal: { maxWidth: '700px', padding: '40px' },
+  editModal: { maxWidth: '600px', padding: '32px' },
   editModalTitle: {
-    fontFamily: "'Georgia', serif",
-    fontSize: '28px',
-    fontWeight: 600,
+    fontWeight: 700,
+    fontSize: '24px',
     color: '#2d4a3e',
-    marginBottom: '24px',
+    marginBottom: '20px',
     textAlign: 'center',
   },
-  editForm: { display: 'flex', flexDirection: 'column', gap: '16px' },
-  editRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' },
-  editField: { display: 'flex', flexDirection: 'column', gap: '6px' },
-  editLabel: { fontSize: '13px', fontWeight: 600, color: '#4a5a52' },
+  editForm: { display: 'flex', flexDirection: 'column', gap: '14px' },
+  editRow: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' },
+  editField: { display: 'flex', flexDirection: 'column', gap: '5px' },
+  editLabel: { fontSize: '12px', fontWeight: 600, color: '#4a5a52' },
   editInput: {
-    padding: '12px 14px',
+    padding: '10px 12px',
     border: '2px solid #e5e5e5',
     borderRadius: '10px',
-    fontSize: '15px',
+    fontSize: '14px',
     fontFamily: 'inherit',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   editTextarea: {
-    padding: '12px 14px',
+    padding: '10px 12px',
     border: '2px solid #e5e5e5',
     borderRadius: '10px',
-    fontSize: '15px',
+    fontSize: '14px',
     fontFamily: 'inherit',
     resize: 'vertical',
     outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
   },
   editActions: {
     display: 'flex',
-    gap: '12px',
+    gap: '10px',
     justifyContent: 'flex-end',
-    marginTop: '16px',
+    marginTop: '14px',
   },
   cancelButton: {
     backgroundColor: '#f8f6f1',
     color: '#6a7a72',
     border: '2px solid #e5e5e5',
-    padding: '12px 24px',
+    padding: '10px 20px',
     borderRadius: '10px',
-    fontSize: '15px',
+    fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -2083,9 +2100,9 @@ const styles = {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '12px 24px',
+    padding: '10px 20px',
     borderRadius: '10px',
-    fontSize: '15px',
+    fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
@@ -2100,36 +2117,37 @@ const styles = {
     backgroundColor: '#f8f6f1',
   },
   loadingSpinner: {
-    width: '40px',
-    height: '40px',
+    width: '36px',
+    height: '36px',
     border: '4px solid #e5e5e5',
     borderTopColor: '#2d4a3e',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
-    marginBottom: '16px',
+    marginBottom: '14px',
   },
-  loadingText: { fontSize: '16px', color: '#7a8a82' },
+  loadingText: { fontSize: '15px', color: '#7a8a82' },
   notification: {
     position: 'fixed',
-    top: '90px',
+    top: '80px',
     left: '50%',
     transform: 'translateX(-50%)',
     color: 'white',
-    padding: '14px 28px',
-    borderRadius: '12px',
-    fontSize: '15px',
+    padding: '12px 24px',
+    borderRadius: '10px',
+    fontSize: '14px',
     fontWeight: 500,
     zIndex: 1001,
-    animation: 'fadeIn 0.3s ease',
     boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+    maxWidth: '90%',
+    textAlign: 'center',
   },
   footer: {
     backgroundColor: '#2d4a3e',
-    padding: '24px',
+    padding: '20px',
     textAlign: 'center',
     marginTop: 'auto',
   },
-  footerText: { color: 'rgba(255,255,255,0.8)', fontSize: '14px', margin: 0 },
+  footerText: { color: 'rgba(255,255,255,0.8)', fontSize: '13px', margin: 0 },
 };
 
 // ============================================
