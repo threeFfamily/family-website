@@ -1108,7 +1108,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
 
   // Get display name with salutation
   const getDisplayName = (person) => {
-    if (person.salutation) {
+    if (person.salutation && person.salutation !== 'Other') {
       return person.salutation + ' ' + person.firstName;
     }
     return person.firstName;
@@ -1119,7 +1119,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     return React.createElement('div', {
       className: 'tree-person',
       style: treeStyles.personCard,
-      onClick: () => onClick(person)
+      onClick: () => onClick(person),
     },
       React.createElement('div', { style: treeStyles.personPhoto },
         person.photo
@@ -1183,25 +1183,47 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       ),
       
       // Children section
-      children.length > 0 && React.createElement('div', { style: treeStyles.childrenSection },
+      children.length > 0 && React.createElement('div', { 
+        style: treeStyles.childrenSection,
+        className: 'children-section'
+      },
         // Vertical line down from parents center
         React.createElement('div', { style: treeStyles.verticalLine }),
         
-        // Horizontal connector bar for multiple children
-        hasMultipleChildren && React.createElement('div', { 
-          style: treeStyles.horizontalConnector,
-          className: 'horizontal-connector'
-        }),
-        
-        // Children row
-        React.createElement('div', { style: treeStyles.childrenRow },
+        // Children row with integrated connecting lines
+        React.createElement('div', { style: treeStyles.childrenRow, className: 'children-row' },
           children.map((child, idx) => 
             React.createElement('div', { 
               key: child.fullName, 
-              style: treeStyles.childBranch
+              style: treeStyles.childBranch,
+              className: 'child-branch'
             },
-              // Vertical line to this child
-              hasMultipleChildren && React.createElement('div', { style: treeStyles.childVerticalLine }),
+              // Top connector: horizontal + vertical in one piece
+              hasMultipleChildren && React.createElement('div', { 
+                style: treeStyles.connectorWrapper 
+              },
+                // Left horizontal segment (not for first child)
+                React.createElement('div', { 
+                  style: {
+                    ...treeStyles.horizontalSegment,
+                    visibility: idx === 0 ? 'hidden' : 'visible'
+                  }
+                }),
+                // Vertical line down
+                React.createElement('div', { style: treeStyles.verticalConnector }),
+                // Right horizontal segment (not for last child)
+                React.createElement('div', { 
+                  style: {
+                    ...treeStyles.horizontalSegment,
+                    visibility: idx === children.length - 1 ? 'hidden' : 'visible'
+                  }
+                })
+              ),
+              
+              // Single child - just a short vertical line
+              !hasMultipleChildren && React.createElement('div', { 
+                style: { ...treeStyles.verticalConnector, height: '20px' } 
+              }),
               
               // Reorder buttons (admin only)
               isAdmin && hasMultipleChildren && React.createElement('div', { style: treeStyles.reorderBtns },
@@ -1260,7 +1282,9 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
               )
         ),
         
-        React.createElement('h2', { style: treeStyles.modalName }, p.fullName),
+        React.createElement('h2', { style: treeStyles.modalName }, 
+          (p.salutation && p.salutation !== 'Other' ? p.salutation + ' ' : '') + p.fullName
+        ),
         p.nickname && React.createElement('p', { style: treeStyles.modalNickname }, '"' + p.nickname + '"'),
         p.relation && React.createElement('span', { style: treeStyles.modalBadge }, p.relation),
         
@@ -1485,27 +1509,16 @@ const treeStyles = {
     fontStyle: 'italic',
     marginTop: '2px',
   },
-  // Children section - IMPROVED ALIGNMENT
+  // Children section - LINES PROPERLY CONNECTED
   childrenSection: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    width: '100%',
   },
   verticalLine: {
     width: '3px',
     height: '20px',
     backgroundColor: '#c9a959',
-  },
-  horizontalConnector: {
-    height: '3px',
-    backgroundColor: '#c9a959',
-    alignSelf: 'stretch',
-    marginLeft: '50%',
-    marginRight: '50%',
-    position: 'relative',
-    left: '0',
-    transform: 'none',
   },
   childrenRow: {
     display: 'flex',
@@ -1516,13 +1529,24 @@ const treeStyles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '0 10px',
-    position: 'relative',
   },
-  childVerticalLine: {
-    width: '3px',
-    height: '20px',
+  // Connector that forms the T-junction for each child
+  connectorWrapper: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    width: '100%',
+  },
+  horizontalSegment: {
+    flex: 1,
+    height: '3px',
     backgroundColor: '#c9a959',
+    minWidth: '20px',
+  },
+  verticalConnector: {
+    width: '3px',
+    height: '25px',
+    backgroundColor: '#c9a959',
+    flexShrink: 0,
   },
   // Reorder buttons
   reorderBtns: {
