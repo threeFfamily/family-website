@@ -42,6 +42,31 @@
         to { opacity: 1; transform: scale(1); }
       }
       
+      /* Base select/dropdown styling for all devices */
+      select,
+      select.form-select {
+        display: block !important;
+        font-size: 16px !important; /* Prevents iOS zoom on focus */
+        padding: 12px 14px !important;
+        border: 2px solid #e5e5e5 !important;
+        border-radius: 10px !important;
+        background-color: white !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        font-family: inherit !important;
+        cursor: pointer !important;
+        -webkit-appearance: menulist !important;
+        -moz-appearance: menulist !important;
+        appearance: menulist !important;
+        color: #333 !important;
+        min-height: 44px !important; /* Touch-friendly height */
+      }
+      
+      select:focus {
+        outline: none !important;
+        border-color: #c9a959 !important;
+      }
+      
       /* ========== MOBILE RESPONSIVE STYLES ========== */
       
       /* Mobile Navigation */
@@ -139,6 +164,7 @@
           padding: 16px !important;
           margin-bottom: 12px !important;
           border-radius: 12px !important;
+          display: block !important;
         }
         
         .section-header {
@@ -172,6 +198,43 @@
           font-size: 14px !important;
         }
         
+        /* CRITICAL: Mobile dropdown/select styling */
+        .form-field select,
+        .form-section select,
+        select.form-select,
+        select {
+          display: block !important;
+          visibility: visible !important;
+          opacity: 1 !important;
+          font-size: 16px !important; /* Prevents iOS zoom */
+          padding: 14px 12px !important;
+          min-height: 48px !important; /* Touch friendly */
+          height: auto !important;
+          line-height: 1.4 !important;
+          -webkit-appearance: menulist !important;
+          -moz-appearance: menulist !important;
+          appearance: menulist !important;
+          background-color: white !important;
+          border: 2px solid #e5e5e5 !important;
+          border-radius: 10px !important;
+          width: 100% !important;
+          box-sizing: border-box !important;
+          color: #333 !important;
+          cursor: pointer !important;
+          touch-action: manipulation !important;
+        }
+        
+        select:focus,
+        .form-select:focus {
+          outline: none !important;
+          border-color: #c9a959 !important;
+        }
+        
+        .form-field {
+          display: block !important;
+          margin-bottom: 16px !important;
+        }
+        
         .form-guide {
           padding: 12px 14px !important;
           margin-top: 16px !important;
@@ -197,10 +260,11 @@
         .form-field label,
         .form-label {
           font-size: 12px !important;
+          display: block !important;
+          margin-bottom: 6px !important;
         }
         
         .form-field input,
-        .form-field select,
         .form-field textarea,
         .form-input,
         .form-select,
@@ -369,99 +433,90 @@
       
       /* Mobile Tree */
       @media (max-width: 768px) {
-        .tree-controls {
-          flex-direction: column !important;
-          gap: 12px !important;
-        }
-        
-        .tree-controls button {
-          width: 100% !important;
-          padding: 10px 14px !important;
-          font-size: 13px !important;
+        .tree-page {
+          padding: 12px !important;
+          display: block !important;
+          visibility: visible !important;
         }
         
         .tree-container {
-          padding: 10px 5px !important;
-          overflow-x: auto !important;
-        }
-        
-        .tree-legend {
+          display: flex !important;
           flex-direction: column !important;
-          gap: 8px !important;
-          font-size: 12px !important;
-        }
-        
-        .tree-canvas {
-          transform-origin: top left !important;
-        }
-        
-        .generation-row {
-          margin-bottom: 30px !important;
-        }
-        
-        .generation-members {
-          gap: 20px !important;
-        }
-        
-        .person-node {
-          min-width: 80px !important;
-          max-width: 100px !important;
-          padding: 8px !important;
-        }
-        
-        .person-photo {
-          width: 45px !important;
-          height: 45px !important;
-        }
-        
-        .person-name {
-          font-size: 11px !important;
-        }
-        
-        .person-nickname {
-          font-size: 9px !important;
-        }
-        
-        .couple-wrapper {
-          flex-direction: column !important;
-          gap: 8px !important;
-        }
-        
-        .marriage-connector {
-          transform: rotate(90deg) !important;
-          margin: 4px 0 !important;
-        }
-        
-        .zoom-controls {
+          visibility: visible !important;
           width: 100% !important;
-          justify-content: center !important;
         }
         
-        .detail-modal {
+        .generation {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          margin-bottom: 20px !important;
+          width: 100% !important;
+        }
+        
+        .gen-label {
+          font-size: 12px !important;
+          padding: 6px 14px !important;
+          margin-bottom: 12px !important;
+          background-color: #f0f7f4 !important;
+          border-radius: 16px !important;
+        }
+        
+        .gen-members {
+          display: flex !important;
+          flex-wrap: wrap !important;
+          justify-content: center !important;
+          gap: 10px !important;
+          width: 100% !important;
+        }
+        
+        .couple {
+          display: flex !important;
+          flex-direction: row !important;
+          align-items: center !important;
+          padding: 8px !important;
+          gap: 6px !important;
+          background-color: #fff8e1 !important;
+          border-radius: 12px !important;
+        }
+        
+        .person-card {
+          display: flex !important;
+          flex-direction: column !important;
+          align-items: center !important;
+          min-width: 70px !important;
+          max-width: 80px !important;
+          padding: 8px !important;
+          background: white !important;
+          border-radius: 10px !important;
+          box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
+        }
+        
+        .card-photo {
+          width: 40px !important;
+          height: 40px !important;
+          border-radius: 50% !important;
+          overflow: hidden !important;
+          margin-bottom: 6px !important;
+        }
+        
+        .card-name {
+          font-size: 10px !important;
+          text-align: center !important;
+          line-height: 1.2 !important;
+        }
+        
+        .tree-modal,
+        .modal-overlay > div {
           padding: 20px !important;
-          max-height: 90vh !important;
+          max-height: 85vh !important;
+          margin: 10px !important;
+          border-radius: 16px !important;
         }
         
         .modal-photo {
-          width: 90px !important;
-          height: 90px !important;
-        }
-        
-        .modal-name {
-          font-size: 20px !important;
-        }
-        
-        .relationships-section {
-          padding: 12px !important;
-        }
-        
-        .relation-item {
-          flex-direction: column !important;
-          gap: 2px !important;
-        }
-        
-        .relation-label {
-          min-width: auto !important;
+          width: 60px !important;
+          height: 60px !important;
         }
       }
       
