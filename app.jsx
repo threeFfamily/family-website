@@ -262,9 +262,9 @@ function HomePage({ setCurrentPage, memberCount }) {
           'A place to connect, share, and preserve our family history for generations to come.'
         ),
         React.createElement('div', { style: styles.heroStats },
-          React.createElement('div', { style: styles.statCard },
-            React.createElement('span', { style: styles.statNumber }, memberCount),
-            React.createElement('span', { style: styles.statLabel }, 'Family Members')
+          React.createElement('div', { style: styles.statCard, className: 'stat-card' },
+            React.createElement('span', { style: styles.statNumber, className: 'stat-number' }, memberCount),
+            React.createElement('span', { style: styles.statLabel, className: 'stat-label' }, 'Family Members')
           )
         ),
         React.createElement('div', { style: styles.heroCta, className: 'hero-cta' },
@@ -308,9 +308,9 @@ function HomePage({ setCurrentPage, memberCount }) {
 
 function FeatureCard({ icon, title, description, action }) {
   return React.createElement('div', { style: styles.featureCard, className: 'feature-card', onClick: action },
-    React.createElement('span', { style: styles.featureIcon }, icon),
-    React.createElement('h3', { style: styles.featureTitle }, title),
-    React.createElement('p', { style: styles.featureDescription }, description),
+    React.createElement('span', { style: styles.featureIcon, className: 'feature-icon' }, icon),
+    React.createElement('h3', { style: styles.featureTitle, className: 'feature-title' }, title),
+    React.createElement('p', { style: styles.featureDescription, className: 'feature-description' }, description),
     React.createElement('span', { style: styles.featureArrow }, '→')
   );
 }
@@ -414,14 +414,14 @@ function SubmitPage({ onSubmit }) {
     React.createElement('div', { style: styles.formContainer, className: 'form-container' },
       React.createElement('div', { style: styles.formHeader },
         React.createElement('h1', { style: styles.formTitle, className: 'form-title' }, 'Join Our Family Tree'),
-        React.createElement('p', { style: styles.formSubtitle },
+        React.createElement('p', { style: styles.formSubtitle, className: 'form-subtitle' },
           'Submit your information to be added to our family directory.'
         ),
-        React.createElement('div', { style: styles.formGuide },
-          React.createElement('p', { style: styles.guideText },
+        React.createElement('div', { style: styles.formGuide, className: 'form-guide' },
+          React.createElement('p', { style: styles.guideText, className: 'guide-text' },
             '📝 Only your first and last name are required. All other fields are optional but help us build a richer family history. Feel free to share as much or as little as you\'re comfortable with.'
           ),
-          React.createElement('p', { style: styles.guideTextSmall },
+          React.createElement('p', { style: styles.guideTextSmall, className: 'guide-text-small' },
             '💡 If you\'d like other family members to be able to contact you, please provide your email, phone number, or location. This information will be visible to other family members in the directory.'
           )
         )
@@ -429,7 +429,7 @@ function SubmitPage({ onSubmit }) {
 
       React.createElement('form', { onSubmit: handleSubmit, style: styles.form },
         React.createElement('div', { style: styles.photoSection },
-          React.createElement('div', { style: styles.photoUpload },
+          React.createElement('div', { style: styles.photoUpload, className: 'photo-upload' },
             photoPreview
               ? React.createElement('img', { src: photoPreview, alt: 'Preview', style: styles.photoPreviewImg })
               : React.createElement('div', { style: styles.photoPlaceholder },
@@ -444,17 +444,18 @@ function SubmitPage({ onSubmit }) {
             })
           ),
           errors.photo && React.createElement('span', { style: styles.errorText }, errors.photo),
-          React.createElement('span', { style: styles.photoHint }, 'Optional - Max 2MB')
+          React.createElement('span', { style: styles.photoHint, className: 'photo-hint' }, 'Optional - Max 2MB')
         ),
 
         React.createElement('div', { style: styles.formGrid, className: 'form-grid' },
           // Salutation Field
-          React.createElement('div', { style: styles.formField },
-            React.createElement('label', { style: styles.label }, 'Salutation'),
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 'Salutation'),
             React.createElement('select', {
               value: formData.salutation,
               onChange: (e) => handleChange('salutation', e.target.value),
-              style: styles.select
+              style: styles.select,
+              className: 'form-select'
             },
               SALUTATION_OPTIONS.map(opt => 
                 React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
@@ -465,7 +466,8 @@ function SubmitPage({ onSubmit }) {
               value: formData.customSalutation,
               onChange: (e) => handleChange('customSalutation', e.target.value),
               style: { ...styles.input, marginTop: '8px' },
-              placeholder: 'Enter your salutation'
+              placeholder: 'Enter your salutation',
+              className: 'form-input'
             })
           ),
           React.createElement(FormField, {
@@ -542,7 +544,8 @@ function SubmitPage({ onSubmit }) {
         React.createElement('button', {
           type: 'submit',
           style: {...styles.submitButton, ...(isSubmitting ? styles.submitButtonDisabled : {})},
-          disabled: isSubmitting
+          disabled: isSubmitting,
+          className: 'submit-button'
         }, isSubmitting ? 'Submitting...' : 'Submit for Approval')
       )
     )
@@ -550,14 +553,15 @@ function SubmitPage({ onSubmit }) {
 }
 
 function FormField({ label, value, onChange, error, placeholder, type = 'text' }) {
-  return React.createElement('div', { style: styles.formField },
-    React.createElement('label', { style: styles.label }, label),
+  return React.createElement('div', { style: styles.formField, className: 'form-field' },
+    React.createElement('label', { style: styles.label, className: 'form-label' }, label),
     React.createElement('input', {
       type: type,
       value: value,
       onChange: (e) => onChange(e.target.value),
       style: {...styles.input, ...(error ? styles.inputError : {})},
-      placeholder: placeholder
+      placeholder: placeholder,
+      className: 'form-input'
     }),
     error && React.createElement('span', { style: styles.errorText }, error)
   );
@@ -610,7 +614,7 @@ function DirectoryPage({ members }) {
   return React.createElement('div', { style: styles.directoryPage },
     React.createElement('div', { style: styles.directoryHeader },
       React.createElement('h1', { style: styles.pageTitle, className: 'page-title' }, 'Family Directory'),
-      React.createElement('p', { style: styles.pageSubtitle },
+      React.createElement('p', { style: styles.pageSubtitle, className: 'page-subtitle' },
         `${members.length} family members`
       )
     ),
@@ -623,7 +627,8 @@ function DirectoryPage({ members }) {
           placeholder: 'Search by name or location...',
           value: searchTerm,
           onChange: (e) => setSearchTerm(e.target.value),
-          style: styles.searchInput
+          style: styles.searchInput,
+          className: 'search-input'
         })
       ),
       React.createElement('button', {
@@ -671,7 +676,7 @@ function DirectoryPage({ members }) {
 
 function MemberCard({ member, onClick }) {
   return React.createElement('div', { style: styles.memberCard, className: 'member-card', onClick: onClick },
-    React.createElement('div', { style: styles.memberPhoto },
+    React.createElement('div', { style: styles.memberPhoto, className: 'member-photo' },
       member.photo
         ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.memberPhotoImg })
         : React.createElement('div', { style: styles.memberPhotoPlaceholder },
@@ -679,10 +684,10 @@ function MemberCard({ member, onClick }) {
           )
     ),
     React.createElement('div', { style: styles.memberInfo },
-      React.createElement('h3', { style: styles.memberName }, member.fullName),
-      member.nickname && React.createElement('span', { style: styles.memberNickname }, `"${member.nickname}"`),
-      member.relation && React.createElement('span', { style: styles.memberRelation }, member.relation),
-      member.location && React.createElement('span', { style: styles.memberLocation }, `📍 ${member.location}`)
+      React.createElement('h3', { style: styles.memberName, className: 'member-name' }, member.fullName),
+      member.nickname && React.createElement('span', { style: styles.memberNickname, className: 'member-nickname' }, `"${member.nickname}"`),
+      member.relation && React.createElement('span', { style: styles.memberRelation, className: 'member-relation' }, member.relation),
+      member.location && React.createElement('span', { style: styles.memberLocation, className: 'member-location' }, `📍 ${member.location}`)
     ),
     React.createElement('span', { style: styles.memberArrow }, '→')
   );
@@ -709,39 +714,39 @@ function MemberModal({ member, onClose }) {
           // Family Details Section
           (member.relation || member.fatherName || member.motherName) && React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
             member.relation && React.createElement('div', { style: styles.detailItem },
-              React.createElement('span', { style: styles.detailLabel }, 'Relation'),
-              React.createElement('span', { style: styles.detailValue }, member.relation)
+              React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Relation'),
+              React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.relation)
             ),
             member.fatherName && React.createElement('div', { style: styles.detailItem },
-              React.createElement('span', { style: styles.detailLabel }, 'Father'),
-              React.createElement('span', { style: styles.detailValue }, member.fatherName)
+              React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Father'),
+              React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.fatherName)
             ),
             member.motherName && React.createElement('div', { style: styles.detailItem },
-              React.createElement('span', { style: styles.detailLabel }, 'Mother'),
-              React.createElement('span', { style: styles.detailValue }, member.motherName)
+              React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Mother'),
+              React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.motherName)
             )
           ),
           
           // Contact Information Section (Email, Phone, Location)
-          (member.location || member.email || member.phone) && React.createElement('div', { style: styles.contactDetails },
-            member.location && React.createElement('div', { style: styles.contactItem },
+          (member.location || member.email || member.phone) && React.createElement('div', { style: styles.contactDetails, className: 'contact-details' },
+            member.location && React.createElement('div', { style: styles.contactItem, className: 'contact-item' },
               React.createElement('span', { style: styles.contactIcon }, '📍'),
               React.createElement('span', null, member.location)
             ),
-            member.email && React.createElement('div', { style: styles.contactItem },
+            member.email && React.createElement('div', { style: styles.contactItem, className: 'contact-item' },
               React.createElement('span', { style: styles.contactIcon }, '✉️'),
               React.createElement('a', { href: `mailto:${member.email}`, style: styles.contactLink }, member.email)
             ),
-            member.phone && React.createElement('div', { style: styles.contactItem },
+            member.phone && React.createElement('div', { style: styles.contactItem, className: 'contact-item' },
               React.createElement('span', { style: styles.contactIcon }, '📱'),
               React.createElement('a', { href: `tel:${member.phone}`, style: styles.contactLink }, member.phone)
             )
           ),
           
           // Bio/About Section
-          member.bio && React.createElement('div', { style: styles.modalBioSection },
-            React.createElement('h4', { style: styles.modalBioTitle }, 'About'),
-            React.createElement('p', { style: styles.modalBioText }, member.bio)
+          member.bio && React.createElement('div', { style: styles.modalBioSection, className: 'modal-bio-section' },
+            React.createElement('h4', { style: styles.modalBioTitle, className: 'modal-bio-title' }, 'About'),
+            React.createElement('p', { style: styles.modalBioText, className: 'modal-bio-text' }, member.bio)
           )
         )
       )
@@ -937,9 +942,9 @@ function AdminPage({
   if (!isAdmin) {
     return React.createElement('div', { style: styles.adminLogin },
       React.createElement('div', { style: styles.loginCard, className: 'login-card' },
-        React.createElement('span', { style: styles.loginIcon }, '🔐'),
+        React.createElement('span', { style: styles.loginIcon, className: 'login-icon' }, '🔐'),
         React.createElement('h2', { style: styles.loginTitle, className: 'login-title' }, 'Admin Access'),
-        React.createElement('p', { style: styles.loginSubtitle }, 'Enter password to manage submissions'),
+        React.createElement('p', { style: styles.loginSubtitle, className: 'login-subtitle' }, 'Enter password to manage submissions'),
         
         React.createElement('form', { onSubmit: handleLogin, style: styles.loginForm },
           React.createElement('input', {
@@ -947,10 +952,11 @@ function AdminPage({
             value: password,
             onChange: (e) => setPassword(e.target.value),
             placeholder: 'Enter password',
-            style: styles.loginInput
+            style: styles.loginInput,
+            className: 'login-input'
           }),
           loginError && React.createElement('span', { style: styles.loginError }, loginError),
-          React.createElement('button', { type: 'submit', style: styles.loginButton },
+          React.createElement('button', { type: 'submit', style: styles.loginButton, className: 'login-button' },
             'Login'
           )
         ),
@@ -1050,7 +1056,7 @@ function AdminPage({
 function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDelete }) {
   return React.createElement('div', { style: styles.adminCard, className: 'admin-card' },
     React.createElement('div', { style: styles.adminCardHeader, className: 'admin-card-header' },
-      React.createElement('div', { style: styles.adminCardPhoto },
+      React.createElement('div', { style: styles.adminCardPhoto, className: 'admin-card-photo' },
         member.photo
           ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.adminCardPhotoImg })
           : React.createElement('div', { style: styles.adminCardPhotoPlaceholder },
@@ -1058,40 +1064,40 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
             )
       ),
       React.createElement('div', { style: styles.adminCardInfo },
-        React.createElement('h3', { style: styles.adminCardName }, member.fullName),
-        member.nickname && React.createElement('span', { style: styles.adminCardNickname }, `"${member.nickname}"`),
-        member.relation && React.createElement('span', { style: styles.adminCardRelation }, member.relation)
+        React.createElement('h3', { style: styles.adminCardName, className: 'admin-card-name' }, member.fullName),
+        member.nickname && React.createElement('span', { style: styles.adminCardNickname, className: 'admin-card-nickname' }, `"${member.nickname}"`),
+        member.relation && React.createElement('span', { style: styles.adminCardRelation, className: 'admin-card-relation' }, member.relation)
       ),
       React.createElement('div', { style: styles.adminCardTimestamp, className: 'admin-card-timestamp' },
         new Date(member.submittedAt).toLocaleDateString()
       )
     ),
     
-    React.createElement('div', { style: styles.adminCardDetails },
-      member.fatherName && React.createElement('div', { style: styles.adminDetailRow },
+    React.createElement('div', { style: styles.adminCardDetails, className: 'admin-card-details' },
+      member.fatherName && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Father: '),
         React.createElement('span', null, member.fatherName)
       ),
-      member.motherName && React.createElement('div', { style: styles.adminDetailRow },
+      member.motherName && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Mother: '),
         React.createElement('span', null, member.motherName)
       ),
-      member.email && React.createElement('div', { style: styles.adminDetailRow },
+      member.email && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Email: '),
         React.createElement('span', null, member.email)
       ),
-      member.phone && React.createElement('div', { style: styles.adminDetailRow },
+      member.phone && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Phone: '),
         React.createElement('span', null, member.phone)
       ),
-      member.location && React.createElement('div', { style: styles.adminDetailRow },
+      member.location && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Location: '),
         React.createElement('span', null, member.location)
       )
     ),
     
-    member.bio && React.createElement('div', { style: styles.adminCardBio },
-      React.createElement('p', { style: styles.adminBioText }, member.bio)
+    member.bio && React.createElement('div', { style: styles.adminCardBio, className: 'admin-card-bio' },
+      React.createElement('p', { style: styles.adminBioText, className: 'admin-bio-text' }, member.bio)
     ),
 
     React.createElement('div', { style: styles.adminCardActions, className: 'admin-card-actions' },
@@ -1157,16 +1163,17 @@ function EditModal({ member, onSave, onClose }) {
     React.createElement('div', { style: {...styles.modal, ...styles.editModal}, className: 'modal edit-modal', onClick: e => e.stopPropagation() },
       React.createElement('button', { style: styles.modalClose, onClick: onClose }, '✕'),
       
-      React.createElement('h2', { style: styles.editModalTitle }, 'Edit Member'),
+      React.createElement('h2', { style: styles.editModalTitle, className: 'edit-modal-title' }, 'Edit Member'),
       
       React.createElement('div', { style: styles.editForm },
         // Salutation Field
-        React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Salutation'),
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Salutation'),
           React.createElement('select', {
             value: showCustomInput ? 'custom' : formData.salutation,
             onChange: (e) => handleChange('salutation', e.target.value),
-            style: styles.editSelect
+            style: styles.editSelect,
+            className: 'edit-select'
           },
             SALUTATION_OPTIONS.map(opt => 
               React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
@@ -1177,113 +1184,124 @@ function EditModal({ member, onSave, onClose }) {
             value: formData.salutation === 'custom' ? formData.customSalutation : formData.salutation,
             onChange: (e) => handleChange(formData.salutation === 'custom' ? 'customSalutation' : 'salutation', e.target.value),
             style: { ...styles.editInput, marginTop: '8px' },
-            placeholder: 'Enter salutation'
+            placeholder: 'Enter salutation',
+            className: 'edit-input'
           })
         ),
         
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'First Name *'),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'First Name *'),
             React.createElement('input', {
               type: 'text',
               value: formData.firstName,
               onChange: (e) => handleChange('firstName', e.target.value),
-              style: styles.editInput
+              style: styles.editInput,
+              className: 'edit-input'
             })
           ),
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'Last Name *'),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Last Name *'),
             React.createElement('input', {
               type: 'text',
               value: formData.lastName,
               onChange: (e) => handleChange('lastName', e.target.value),
-              style: styles.editInput
+              style: styles.editInput,
+              className: 'edit-input'
             })
           )
         ),
         
-        React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Nickname'),
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Nickname'),
           React.createElement('input', {
             type: 'text',
             value: formData.nickname,
             onChange: (e) => handleChange('nickname', e.target.value),
-            style: styles.editInput
+            style: styles.editInput,
+            className: 'edit-input'
           })
         ),
         
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, "Father's Name"),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, "Father's Name"),
             React.createElement('input', {
               type: 'text',
               value: formData.fatherName,
               onChange: (e) => handleChange('fatherName', e.target.value),
-              style: styles.editInput
+              style: styles.editInput,
+              className: 'edit-input'
             })
           ),
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, "Mother's Name"),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, "Mother's Name"),
             React.createElement('input', {
               type: 'text',
               value: formData.motherName,
               onChange: (e) => handleChange('motherName', e.target.value),
-              style: styles.editInput
+              style: styles.editInput,
+              className: 'edit-input'
             })
           )
         ),
         
-        React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Relation'),
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Relation'),
           React.createElement('input', {
             type: 'text',
             value: formData.relation,
             onChange: (e) => handleChange('relation', e.target.value),
-            style: styles.editInput
+            style: styles.editInput,
+            className: 'edit-input'
           })
         ),
         
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'Email'),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Email'),
             React.createElement('input', {
               type: 'email',
               value: formData.email,
               onChange: (e) => handleChange('email', e.target.value),
               style: styles.editInput,
-              placeholder: 'Optional'
+              placeholder: 'Optional',
+              className: 'edit-input'
             })
           ),
-          React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'Phone'),
+          React.createElement('div', { style: styles.editField, className: 'edit-field' },
+            React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Phone'),
             React.createElement('input', {
               type: 'tel',
               value: formData.phone,
               onChange: (e) => handleChange('phone', e.target.value),
               style: styles.editInput,
-              placeholder: 'Optional'
+              placeholder: 'Optional',
+              className: 'edit-input'
             })
           )
         ),
         
-        React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Location'),
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Location'),
           React.createElement('input', {
             type: 'text',
             value: formData.location,
             onChange: (e) => handleChange('location', e.target.value),
             style: styles.editInput,
-            placeholder: 'City, State/Country (Optional)'
+            placeholder: 'City, State/Country (Optional)',
+            className: 'edit-input'
           })
         ),
         
-        React.createElement('div', { style: styles.editField },
-          React.createElement('label', { style: styles.editLabel }, 'Bio'),
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Bio'),
           React.createElement('textarea', {
             value: formData.bio,
             onChange: (e) => handleChange('bio', e.target.value),
             style: styles.editTextarea,
-            rows: 3
+            rows: 3,
+            className: 'edit-textarea'
           })
         ),
         
