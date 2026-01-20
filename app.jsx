@@ -4,7 +4,7 @@ const { useState, useEffect, useCallback, useMemo } = React;
 // FAMILY HERITAGE WEBSITE WITH FIREBASE
 // ============================================
 
-const ADMIN_PASSWORD = "family2024"; // Change this to your desired password
+const ADMIN_PASSWORD = "family2026"; // Change this to your desired password
 
 // Helper to generate unique IDs
 const generateId = () => `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
