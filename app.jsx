@@ -21,6 +21,14 @@ const SALUTATION_OPTIONS = [
   { value: 'custom', label: 'Other (type your own)' },
 ];
 
+// Relationship options (simplified - tree is built from parent/spouse connections)
+const RELATION_OPTIONS = [
+  { value: '', label: 'Select one...' },
+  { value: 'Born into family', label: 'I was born into this family' },
+  { value: 'Married into family', label: 'I married into this family' },
+  { value: 'custom', label: 'Other (let me explain)' },
+];
+
 // Helper to generate unique IDs
 const generateId = () => `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -159,7 +167,8 @@ function FamilyWebsite() {
       }),
       
       currentPage === 'submit' && React.createElement(SubmitPage, {
-        onSubmit: submitMember
+        onSubmit: submitMember,
+        existingMembers: members
       }),
       
       currentPage === 'directory' && React.createElement(DirectoryPage, {
@@ -167,7 +176,9 @@ function FamilyWebsite() {
       }),
       
       currentPage === 'tree' && React.createElement(FamilyTreePage, {
-        members: members
+        members: members,
+        isAdmin: isAdmin,
+        onEditMember: editMember
       }),
       
       currentPage === 'admin' && React.createElement(AdminPage, {
@@ -318,7 +329,7 @@ function FeatureCard({ icon, title, description, action }) {
 // ============================================
 // SUBMIT PAGE
 // ============================================
-function SubmitPage({ onSubmit }) {
+function SubmitPage({ onSubmit, existingMembers = [] }) {
   const [formData, setFormData] = useState({
     salutation: '',
     customSalutation: '',
@@ -327,12 +338,18 @@ function SubmitPage({ onSubmit }) {
     nickname: '',
     fatherName: '',
     motherName: '',
+    spouseName: '',
     relation: '',
     email: '',
     phone: '',
     location: '',
     bio: '',
     photo: null,
+    // UI helper flags for custom inputs
+    showCustomFather: false,
+    showCustomMother: false,
+    showCustomSpouse: false,
+    showCustomRelation: false,
   });
   const [photoPreview, setPhotoPreview] = useState(null);
   const [errors, setErrors] = useState({});
@@ -415,138 +432,367 @@ function SubmitPage({ onSubmit }) {
       React.createElement('div', { style: styles.formHeader },
         React.createElement('h1', { style: styles.formTitle, className: 'form-title' }, 'Join Our Family Tree'),
         React.createElement('p', { style: styles.formSubtitle, className: 'form-subtitle' },
-          'Submit your information to be added to our family directory.'
-        ),
-        React.createElement('div', { style: styles.formGuide, className: 'form-guide' },
-          React.createElement('p', { style: styles.guideText, className: 'guide-text' },
-            '📝 Only your first and last name are required. All other fields are optional but help us build a richer family history. Feel free to share as much or as little as you\'re comfortable with.'
-          ),
-          React.createElement('p', { style: styles.guideTextSmall, className: 'guide-text-small' },
-            '💡 If you\'d like other family members to be able to contact you, please provide your email, phone number, or location. This information will be visible to other family members in the directory.'
-          )
+          'Add your information to connect with the family'
         )
       ),
 
       React.createElement('form', { onSubmit: handleSubmit, style: styles.form },
-        React.createElement('div', { style: styles.photoSection },
-          React.createElement('div', { style: styles.photoUpload, className: 'photo-upload' },
-            photoPreview
-              ? React.createElement('img', { src: photoPreview, alt: 'Preview', style: styles.photoPreviewImg })
-              : React.createElement('div', { style: styles.photoPlaceholder },
-                  React.createElement('span', { style: styles.photoIcon }, '📷'),
-                  React.createElement('span', null, 'Add Photo')
-                ),
-            React.createElement('input', {
-              type: 'file',
-              accept: 'image/*',
-              onChange: handlePhotoChange,
-              style: styles.photoInput
-            })
+        
+        // ========== SECTION 1: BASIC INFO ==========
+        React.createElement('div', { style: styles.formSection },
+          React.createElement('div', { style: styles.sectionHeader },
+            React.createElement('span', { style: styles.sectionIcon }, '👤'),
+            React.createElement('h3', { style: styles.sectionTitle }, 'Your Basic Information'),
+            React.createElement('span', { style: styles.requiredNote }, '* Required fields')
           ),
-          errors.photo && React.createElement('span', { style: styles.errorText }, errors.photo),
-          React.createElement('span', { style: styles.photoHint, className: 'photo-hint' }, 'Optional - Max 2MB')
+          
+          // Photo upload
+          React.createElement('div', { style: styles.photoSection },
+            React.createElement('div', { style: styles.photoUpload, className: 'photo-upload' },
+              photoPreview
+                ? React.createElement('img', { src: photoPreview, alt: 'Preview', style: styles.photoPreviewImg })
+                : React.createElement('div', { style: styles.photoPlaceholder },
+                    React.createElement('span', { style: styles.photoIcon }, '📷'),
+                    React.createElement('span', null, 'Add Photo')
+                  ),
+              React.createElement('input', {
+                type: 'file',
+                accept: 'image/*',
+                onChange: handlePhotoChange,
+                style: styles.photoInput
+              })
+            ),
+            errors.photo && React.createElement('span', { style: styles.errorText }, errors.photo),
+            React.createElement('span', { style: styles.photoHint, className: 'photo-hint' }, 'Optional - Max 2MB')
+          ),
+
+          React.createElement('div', { style: styles.formRow },
+            // Salutation
+            React.createElement('div', { style: {...styles.formField, flex: '0 0 140px'}, className: 'form-field' },
+              React.createElement('label', { style: styles.label, className: 'form-label' }, 'Title'),
+              React.createElement('select', {
+                value: formData.salutation,
+                onChange: (e) => handleChange('salutation', e.target.value),
+                style: styles.select,
+                className: 'form-select'
+              },
+                SALUTATION_OPTIONS.map(opt => 
+                  React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+                )
+              ),
+              formData.salutation === 'custom' && React.createElement('input', {
+                type: 'text',
+                value: formData.customSalutation,
+                onChange: (e) => handleChange('customSalutation', e.target.value),
+                style: { ...styles.input, marginTop: '8px' },
+                placeholder: 'Type title...',
+                className: 'form-input'
+              })
+            ),
+            // First Name
+            React.createElement('div', { style: {...styles.formField, flex: 1}, className: 'form-field' },
+              React.createElement('label', { style: styles.label, className: 'form-label' }, 'First Name *'),
+              React.createElement('input', {
+                type: 'text',
+                value: formData.firstName,
+                onChange: (e) => handleChange('firstName', e.target.value),
+                style: {...styles.input, ...(errors.firstName ? styles.inputError : {})},
+                placeholder: 'Your first name',
+                className: 'form-input'
+              }),
+              errors.firstName && React.createElement('span', { style: styles.errorText }, errors.firstName)
+            ),
+            // Last Name  
+            React.createElement('div', { style: {...styles.formField, flex: 1}, className: 'form-field' },
+              React.createElement('label', { style: styles.label, className: 'form-label' }, 'Last Name *'),
+              React.createElement('input', {
+                type: 'text',
+                value: formData.lastName,
+                onChange: (e) => handleChange('lastName', e.target.value),
+                style: {...styles.input, ...(errors.lastName ? styles.inputError : {})},
+                placeholder: 'Your last name',
+                className: 'form-input'
+              }),
+              errors.lastName && React.createElement('span', { style: styles.errorText }, errors.lastName)
+            )
+          ),
+          
+          // Nickname
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 'Nickname'),
+            React.createElement('input', {
+              type: 'text',
+              value: formData.nickname,
+              onChange: (e) => handleChange('nickname', e.target.value),
+              style: styles.input,
+              placeholder: 'What do people call you? (optional)',
+              className: 'form-input'
+            })
+          )
         ),
 
-        React.createElement('div', { style: styles.formGrid, className: 'form-grid' },
-          // Salutation Field
+        // ========== SECTION 2: FAMILY CONNECTIONS ==========
+        React.createElement('div', { style: styles.formSection },
+          React.createElement('div', { style: styles.sectionHeader },
+            React.createElement('span', { style: styles.sectionIcon }, '🌳'),
+            React.createElement('h3', { style: styles.sectionTitle }, 'Family Connections')
+          ),
+          
+          // Explanation box
+          React.createElement('div', { style: styles.infoBox },
+            React.createElement('p', { style: styles.infoText },
+              '🔗 The family tree is built by connecting parents to children. Select your parents below if they\'re already in the system, or type their names to add them later.'
+            )
+          ),
+          
+          // How did you join this family?
           React.createElement('div', { style: styles.formField, className: 'form-field' },
-            React.createElement('label', { style: styles.label, className: 'form-label' }, 'Salutation'),
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 'How did you join this family?'),
             React.createElement('select', {
-              value: formData.salutation,
-              onChange: (e) => handleChange('salutation', e.target.value),
+              value: formData.relation || '',
+              onChange: (e) => {
+                if (e.target.value === 'custom') {
+                  handleChange('relation', '');
+                  handleChange('showCustomRelation', true);
+                } else {
+                  handleChange('relation', e.target.value);
+                  handleChange('showCustomRelation', false);
+                }
+              },
               style: styles.select,
               className: 'form-select'
             },
-              SALUTATION_OPTIONS.map(opt => 
+              RELATION_OPTIONS.map(opt => 
                 React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
               )
             ),
-            formData.salutation === 'custom' && React.createElement('input', {
+            formData.showCustomRelation && 
+              React.createElement('input', {
+                type: 'text',
+                value: formData.relation,
+                onChange: (e) => handleChange('relation', e.target.value),
+                style: { ...styles.input, marginTop: '8px' },
+                placeholder: 'Please describe...',
+                className: 'form-input'
+              })
+          ),
+          
+          // Father's Name
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, "Father's Name"),
+            existingMembers.length > 0 
+              ? React.createElement('div', null,
+                  React.createElement('select', {
+                    value: existingMembers.some(m => m.fullName === formData.fatherName) ? formData.fatherName : (formData.fatherName ? '__custom__' : ''),
+                    onChange: (e) => {
+                      if (e.target.value === '__custom__') {
+                        handleChange('fatherName', '');
+                        handleChange('showCustomFather', true);
+                      } else {
+                        handleChange('fatherName', e.target.value);
+                        handleChange('showCustomFather', false);
+                      }
+                    },
+                    style: styles.select,
+                    className: 'form-select'
+                  },
+                    React.createElement('option', { value: '' }, '— Select if in system —'),
+                    existingMembers
+                      .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+                      .map(member => 
+                        React.createElement('option', { key: member.id, value: member.fullName }, member.fullName)
+                      ),
+                    React.createElement('option', { value: '__custom__' }, '✏️ Not in list - type name...')
+                  ),
+                  (formData.showCustomFather || (formData.fatherName && !existingMembers.some(m => m.fullName === formData.fatherName))) &&
+                    React.createElement('input', {
+                      type: 'text',
+                      value: formData.fatherName,
+                      onChange: (e) => handleChange('fatherName', e.target.value),
+                      style: { ...styles.input, marginTop: '8px' },
+                      placeholder: "Father's full name",
+                      className: 'form-input'
+                    })
+                )
+              : React.createElement('input', {
+                  type: 'text',
+                  value: formData.fatherName,
+                  onChange: (e) => handleChange('fatherName', e.target.value),
+                  style: styles.input,
+                  placeholder: "Father's full name (optional)",
+                  className: 'form-input'
+                })
+          ),
+          
+          // Mother's Name
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, "Mother's Name"),
+            existingMembers.length > 0
+              ? React.createElement('div', null,
+                  React.createElement('select', {
+                    value: existingMembers.some(m => m.fullName === formData.motherName) ? formData.motherName : (formData.motherName ? '__custom__' : ''),
+                    onChange: (e) => {
+                      if (e.target.value === '__custom__') {
+                        handleChange('motherName', '');
+                        handleChange('showCustomMother', true);
+                      } else {
+                        handleChange('motherName', e.target.value);
+                        handleChange('showCustomMother', false);
+                      }
+                    },
+                    style: styles.select,
+                    className: 'form-select'
+                  },
+                    React.createElement('option', { value: '' }, '— Select if in system —'),
+                    existingMembers
+                      .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+                      .map(member => 
+                        React.createElement('option', { key: member.id, value: member.fullName }, member.fullName)
+                      ),
+                    React.createElement('option', { value: '__custom__' }, '✏️ Not in list - type name...')
+                  ),
+                  (formData.showCustomMother || (formData.motherName && !existingMembers.some(m => m.fullName === formData.motherName))) &&
+                    React.createElement('input', {
+                      type: 'text',
+                      value: formData.motherName,
+                      onChange: (e) => handleChange('motherName', e.target.value),
+                      style: { ...styles.input, marginTop: '8px' },
+                      placeholder: "Mother's full name",
+                      className: 'form-input'
+                    })
+                )
+              : React.createElement('input', {
+                  type: 'text',
+                  value: formData.motherName,
+                  onChange: (e) => handleChange('motherName', e.target.value),
+                  style: styles.input,
+                  placeholder: "Mother's full name (optional)",
+                  className: 'form-input'
+                })
+          ),
+          
+          // Spouse Name
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, "Spouse/Partner (optional)"),
+            existingMembers.length > 0
+              ? React.createElement('div', null,
+                  React.createElement('select', {
+                    value: existingMembers.some(m => m.fullName === formData.spouseName) ? formData.spouseName : (formData.spouseName ? '__custom__' : ''),
+                    onChange: (e) => {
+                      if (e.target.value === '__custom__') {
+                        handleChange('spouseName', '');
+                        handleChange('showCustomSpouse', true);
+                      } else {
+                        handleChange('spouseName', e.target.value);
+                        handleChange('showCustomSpouse', false);
+                      }
+                    },
+                    style: styles.select,
+                    className: 'form-select'
+                  },
+                    React.createElement('option', { value: '' }, '— Select if in system —'),
+                    existingMembers
+                      .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+                      .map(member => 
+                        React.createElement('option', { key: member.id, value: member.fullName }, member.fullName)
+                      ),
+                    React.createElement('option', { value: '__custom__' }, '✏️ Not in list - type name...')
+                  ),
+                  (formData.showCustomSpouse || (formData.spouseName && !existingMembers.some(m => m.fullName === formData.spouseName))) &&
+                    React.createElement('input', {
+                      type: 'text',
+                      value: formData.spouseName,
+                      onChange: (e) => handleChange('spouseName', e.target.value),
+                      style: { ...styles.input, marginTop: '8px' },
+                      placeholder: "Spouse's full name",
+                      className: 'form-input'
+                    })
+                )
+              : React.createElement('input', {
+                  type: 'text',
+                  value: formData.spouseName,
+                  onChange: (e) => handleChange('spouseName', e.target.value),
+                  style: styles.input,
+                  placeholder: "Spouse's full name (optional)",
+                  className: 'form-input'
+                })
+          )
+        ),
+
+        // ========== SECTION 3: CONTACT INFO ==========
+        React.createElement('div', { style: styles.formSection },
+          React.createElement('div', { style: styles.sectionHeader },
+            React.createElement('span', { style: styles.sectionIcon }, '📞'),
+            React.createElement('h3', { style: styles.sectionTitle }, 'Contact Information'),
+            React.createElement('span', { style: styles.sectionHint }, 'Optional - visible to family members')
+          ),
+          
+          React.createElement('div', { style: styles.formRow },
+            React.createElement('div', { style: {...styles.formField, flex: 1}, className: 'form-field' },
+              React.createElement('label', { style: styles.label, className: 'form-label' }, 'Email'),
+              React.createElement('input', {
+                type: 'email',
+                value: formData.email,
+                onChange: (e) => handleChange('email', e.target.value),
+                style: styles.input,
+                placeholder: 'your.email@example.com',
+                className: 'form-input'
+              })
+            ),
+            React.createElement('div', { style: {...styles.formField, flex: 1}, className: 'form-field' },
+              React.createElement('label', { style: styles.label, className: 'form-label' }, 'Phone'),
+              React.createElement('input', {
+                type: 'tel',
+                value: formData.phone,
+                onChange: (e) => handleChange('phone', e.target.value),
+                style: styles.input,
+                placeholder: '+1 (555) 123-4567',
+                className: 'form-input'
+              })
+            )
+          ),
+          
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 'Location'),
+            React.createElement('input', {
               type: 'text',
-              value: formData.customSalutation,
-              onChange: (e) => handleChange('customSalutation', e.target.value),
-              style: { ...styles.input, marginTop: '8px' },
-              placeholder: 'Enter your salutation',
+              value: formData.location,
+              onChange: (e) => handleChange('location', e.target.value),
+              style: styles.input,
+              placeholder: 'City, Country (e.g., Douala, Cameroon)',
               className: 'form-input'
             })
+          )
+        ),
+
+        // ========== SECTION 4: ABOUT YOU ==========
+        React.createElement('div', { style: styles.formSection },
+          React.createElement('div', { style: styles.sectionHeader },
+            React.createElement('span', { style: styles.sectionIcon }, '📝'),
+            React.createElement('h3', { style: styles.sectionTitle }, 'About You'),
+            React.createElement('span', { style: styles.sectionHint }, 'Tell the family a bit about yourself')
           ),
-          React.createElement(FormField, {
-            label: 'First Name *',
-            value: formData.firstName,
-            onChange: (v) => handleChange('firstName', v),
-            error: errors.firstName,
-            placeholder: 'Your first name'
-          }),
-          React.createElement(FormField, {
-            label: 'Last Name *',
-            value: formData.lastName,
-            onChange: (v) => handleChange('lastName', v),
-            error: errors.lastName,
-            placeholder: 'Your last name'
-          }),
-          React.createElement(FormField, {
-            label: 'Nickname',
-            value: formData.nickname,
-            onChange: (v) => handleChange('nickname', v),
-            placeholder: 'Other name (optional)'
-          }),
-          React.createElement(FormField, {
-            label: 'Relation to Family',
-            value: formData.relation,
-            onChange: (v) => handleChange('relation', v),
-            placeholder: 'e.g., Son of John Smith (optional)'
-          }),
-          React.createElement(FormField, {
-            label: "Father's Name",
-            value: formData.fatherName,
-            onChange: (v) => handleChange('fatherName', v),
-            placeholder: "Father's full name (optional)"
-          }),
-          React.createElement(FormField, {
-            label: "Mother's Name",
-            value: formData.motherName,
-            onChange: (v) => handleChange('motherName', v),
-            placeholder: "Mother's full name (optional)"
-          }),
-          React.createElement(FormField, {
-            label: "Email",
-            value: formData.email,
-            onChange: (v) => handleChange('email', v),
-            placeholder: "Your email (optional)",
-            type: "email"
-          }),
-          React.createElement(FormField, {
-            label: "Phone",
-            value: formData.phone,
-            onChange: (v) => handleChange('phone', v),
-            placeholder: "Your phone (optional)",
-            type: "tel"
-          }),
-          React.createElement(FormField, {
-            label: "Location",
-            value: formData.location,
-            onChange: (v) => handleChange('location', v),
-            placeholder: "City, State/Country (optional)"
-          }),
+          
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 'Short Bio'),
+            React.createElement('textarea', {
+              value: formData.bio,
+              onChange: (e) => handleChange('bio', e.target.value),
+              style: styles.textarea,
+              rows: 4,
+              placeholder: 'Share something about yourself - your work, hobbies, family memories, or anything you\'d like the family to know...',
+              className: 'form-textarea'
+            })
+          )
         ),
 
-        React.createElement('div', { style: styles.formFullWidth },
-          React.createElement('label', { style: styles.label }, 'About You'),
-          React.createElement('textarea', {
-            value: formData.bio,
-            onChange: (e) => handleChange('bio', e.target.value),
-            style: styles.textarea,
-            placeholder: 'Share a short paragraph about yourself (optional)...',
-            rows: 4
-          })
-        ),
-
+        // Submit Button
         React.createElement('button', {
           type: 'submit',
           style: {...styles.submitButton, ...(isSubmitting ? styles.submitButtonDisabled : {})},
           disabled: isSubmitting,
           className: 'submit-button'
-        }, isSubmitting ? 'Submitting...' : 'Submit for Approval')
+        }, isSubmitting ? 'Submitting...' : '✓ Submit for Approval')
       )
     )
   );
@@ -712,7 +958,7 @@ function MemberModal({ member, onClose }) {
           member.nickname && React.createElement('p', { style: styles.modalNickname }, `"${member.nickname}"`),
           
           // Family Details Section
-          (member.relation || member.fatherName || member.motherName) && React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
+          (member.relation || member.fatherName || member.motherName || member.spouseName) && React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
             member.relation && React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Relation'),
               React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.relation)
@@ -724,6 +970,10 @@ function MemberModal({ member, onClose }) {
             member.motherName && React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Mother'),
               React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.motherName)
+            ),
+            member.spouseName && React.createElement('div', { style: styles.detailItem },
+              React.createElement('span', { style: styles.detailLabel, className: 'detail-label' }, 'Spouse'),
+              React.createElement('span', { style: styles.detailValue, className: 'detail-value' }, member.spouseName)
             )
           ),
           
@@ -755,166 +1005,776 @@ function MemberModal({ member, onClose }) {
 }
 
 // ============================================
-// FAMILY TREE PAGE
+// FAMILY TREE PAGE - Visual Tree Layout
 // ============================================
-function FamilyTreePage({ members }) {
-  const [viewMode, setViewMode] = useState('visual');
+function FamilyTreePage({ members, onEditMember, isAdmin }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
-  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [zoom, setZoom] = useState(1);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingPerson, setEditingPerson] = useState(null);
 
+  // Build family data structure
   const familyData = useMemo(() => {
     const people = {};
     
+    // First pass: create all people
     members.forEach(member => {
       people[member.fullName] = {
         ...member,
         children: [],
-        parents: []
+        parents: [],
+        spouse: null,
+        generation: 0
       };
     });
 
+    // Second pass: establish parent-child relationships
     members.forEach(member => {
       if (member.fatherName && people[member.fatherName]) {
-        people[member.fatherName].children.push(member.fullName);
+        if (!people[member.fatherName].children.includes(member.fullName)) {
+          people[member.fatherName].children.push(member.fullName);
+        }
         people[member.fullName].parents.push(member.fatherName);
       }
       if (member.motherName && people[member.motherName]) {
-        people[member.motherName].children.push(member.fullName);
+        if (!people[member.motherName].children.includes(member.fullName)) {
+          people[member.motherName].children.push(member.fullName);
+        }
         people[member.fullName].parents.push(member.motherName);
+      }
+      
+      // Spouse relationships (including from children's parents)
+      if (member.spouseName && people[member.spouseName]) {
+        people[member.fullName].spouse = member.spouseName;
+        people[member.spouseName].spouse = member.fullName;
       }
     });
 
+    // Infer spouse relationships from shared children
+    members.forEach(member => {
+      if (member.fatherName && member.motherName && 
+          people[member.fatherName] && people[member.motherName]) {
+        people[member.fatherName].spouse = member.motherName;
+        people[member.motherName].spouse = member.fatherName;
+      }
+    });
+
+    // Calculate generations (0 = oldest/root)
+    const calculateGeneration = (personName, generation, visited = new Set()) => {
+      if (visited.has(personName) || !people[personName]) return;
+      visited.add(personName);
+      
+      people[personName].generation = Math.max(people[personName].generation, generation);
+      
+      // Spouse should be same generation
+      if (people[personName].spouse && people[people[personName].spouse]) {
+        people[people[personName].spouse].generation = people[personName].generation;
+      }
+      
+      // Children are next generation
+      people[personName].children.forEach(childName => {
+        calculateGeneration(childName, generation + 1, visited);
+      });
+    };
+
+    // Find roots (people with no parents in system)
     const roots = Object.values(people).filter(p => 
       p.parents.length === 0 || p.parents.every(parent => !people[parent])
     );
 
-    return { people, roots };
+    // Calculate generations starting from roots
+    const visited = new Set();
+    roots.forEach(root => calculateGeneration(root.fullName, 0, visited));
+
+    // Group by generation
+    const generations = {};
+    Object.values(people).forEach(person => {
+      const gen = person.generation;
+      if (!generations[gen]) generations[gen] = [];
+      generations[gen].push(person);
+    });
+
+    // Sort generations and remove duplicate spouses
+    const sortedGenerations = Object.keys(generations)
+      .sort((a, b) => Number(a) - Number(b))
+      .map(gen => {
+        const genPeople = generations[gen];
+        const seen = new Set();
+        const filtered = [];
+        
+        genPeople.forEach(person => {
+          if (seen.has(person.fullName)) return;
+          seen.add(person.fullName);
+          
+          // Group with spouse
+          if (person.spouse && people[person.spouse] && !seen.has(person.spouse)) {
+            seen.add(person.spouse);
+            filtered.push({
+              type: 'couple',
+              person1: person,
+              person2: people[person.spouse],
+              children: [...new Set([...person.children, ...people[person.spouse].children])]
+            });
+          } else if (!person.spouse || !people[person.spouse]) {
+            filtered.push({
+              type: 'single',
+              person: person,
+              children: person.children
+            });
+          }
+        });
+        
+        return filtered;
+      });
+
+    return { people, roots, generations: sortedGenerations };
   }, [members]);
 
-  const toggleNode = (name) => {
-    setExpandedNodes(prev => {
-      const next = new Set(prev);
-      if (next.has(name)) {
-        next.delete(name);
-      } else {
-        next.add(name);
-      }
-      return next;
-    });
-  };
-
-  const renderTreeNode = (personName, level = 0, visited = new Set()) => {
-    if (visited.has(personName)) return null;
-    const newVisited = new Set(visited);
-    newVisited.add(personName);
-
-    const person = familyData.people[personName];
-    if (!person) return null;
-
-    const hasChildren = person.children.length > 0;
-    const isExpanded = expandedNodes.has(personName);
-
-    return React.createElement('div', { key: personName, style: { ...styles.treeNode, marginLeft: Math.min(level * 20, 60) } },
-      React.createElement('div', {
-        style: styles.treeNodeContent,
-        onClick: () => hasChildren && toggleNode(personName)
-      },
-        hasChildren
-          ? React.createElement('span', { style: styles.treeToggle }, isExpanded ? '▼' : '▶')
-          : React.createElement('span', { style: { width: 16 } }),
-        React.createElement('div', {
-          style: styles.treeNodeCard,
-          onClick: (e) => { e.stopPropagation(); setSelectedPerson(person); }
-        },
-          React.createElement('div', { style: styles.treePhoto },
-            person.photo
-              ? React.createElement('img', { src: person.photo, alt: personName, style: styles.treePhotoImg })
-              : React.createElement('div', { style: styles.treePhotoPlaceholder },
-                  `${person.firstName?.[0] || ''}${person.lastName?.[0] || ''}`
-                )
-          ),
-          React.createElement('div', { style: styles.treeInfo },
-            React.createElement('span', { style: styles.treeName }, personName),
-            person.nickname && React.createElement('span', { style: styles.treeNickname }, `"${person.nickname}"`)
-          )
-        )
+  // Render a person node
+  const renderPersonNode = (person, isClickable = true) => {
+    const nodeStyle = {
+      ...treeStyles.personNode,
+      cursor: isClickable ? 'pointer' : 'default'
+    };
+    
+    return React.createElement('div', {
+      key: person.fullName,
+      style: nodeStyle,
+      onClick: () => isClickable && setSelectedPerson(person),
+      title: 'Click to view details'
+    },
+      React.createElement('div', { style: treeStyles.personPhoto },
+        person.photo
+          ? React.createElement('img', { src: person.photo, alt: person.fullName, style: treeStyles.personPhotoImg })
+          : React.createElement('div', { style: treeStyles.personPhotoPlaceholder },
+              `${person.firstName?.[0] || ''}${person.lastName?.[0] || ''}`
+            )
       ),
-      hasChildren && isExpanded && React.createElement('div', { style: styles.treeChildren },
-        person.children.map(childName => renderTreeNode(childName, level + 1, newVisited))
+      React.createElement('div', { style: treeStyles.personName }, 
+        person.firstName + ' ' + person.lastName
+      ),
+      person.nickname && React.createElement('div', { style: treeStyles.personNickname }, 
+        `"${person.nickname}"`
+      ),
+      person.relation && React.createElement('div', { style: treeStyles.personRelation }, 
+        person.relation
       )
     );
   };
 
-  return React.createElement('div', { style: styles.treePage },
-    React.createElement('div', { style: styles.treeHeader },
-      React.createElement('h1', { style: styles.pageTitle, className: 'page-title' }, 'Family Tree'),
-      React.createElement('p', { style: styles.pageSubtitle },
-        'Click ▶ to expand branches'
-      )
-    ),
-
-    React.createElement('div', { style: styles.treeControls, className: 'tree-controls' },
-      React.createElement('button', {
-        style: {...styles.viewButton, ...(viewMode === 'visual' ? styles.viewButtonActive : {})},
-        onClick: () => setViewMode('visual')
-      }, '🌳 Tree'),
-      React.createElement('button', {
-        style: {...styles.viewButton, ...(viewMode === 'list' ? styles.viewButtonActive : {})},
-        onClick: () => setViewMode('list')
-      }, '📋 List'),
-      React.createElement('div', { style: styles.expandCollapseGroup, className: 'expand-collapse-btns' },
-        React.createElement('button', {
-          style: styles.expandButton,
-          onClick: () => setExpandedNodes(new Set(Object.keys(familyData.people)))
-        }, 'Expand'),
-        React.createElement('button', {
-          style: styles.collapseButton,
-          onClick: () => setExpandedNodes(new Set())
-        }, 'Collapse')
-      )
-    ),
-
-    members.length === 0
-      ? React.createElement('div', { style: styles.emptyState },
-          React.createElement('span', { style: styles.emptyIcon }, '🌱'),
-          React.createElement('h3', { style: styles.emptyTitle }, 'No members yet'),
-          React.createElement('p', { style: styles.emptyText }, 'Add family members to see the tree!')
+  // Render a family unit (couple or single with children)
+  const renderFamilyUnit = (unit, genIndex) => {
+    const hasChildren = unit.children && unit.children.length > 0;
+    
+    return React.createElement('div', { 
+      key: unit.type === 'couple' ? `${unit.person1.fullName}-${unit.person2.fullName}` : unit.person.fullName,
+      style: treeStyles.familyUnit 
+    },
+      // Parents row
+      React.createElement('div', { style: treeStyles.parentsRow },
+        unit.type === 'couple' 
+          ? React.createElement('div', { style: treeStyles.coupleWrapper },
+              renderPersonNode(unit.person1),
+              React.createElement('div', { style: treeStyles.marriageConnector },
+                React.createElement('div', { style: treeStyles.marriageLine }),
+                React.createElement('span', { style: treeStyles.marriageHeart }, '❤️')
+              ),
+              renderPersonNode(unit.person2)
+            )
+          : renderPersonNode(unit.person)
+      ),
+      
+      // Vertical line to children
+      hasChildren && React.createElement('div', { style: treeStyles.verticalLine }),
+      
+      // Children row
+      hasChildren && React.createElement('div', { style: treeStyles.childrenSection },
+        // Horizontal line above children
+        unit.children.length > 1 && React.createElement('div', { style: treeStyles.horizontalLine }),
+        
+        // Children
+        React.createElement('div', { style: treeStyles.childrenRow },
+          unit.children.map(childName => {
+            const child = familyData.people[childName];
+            if (!child) return null;
+            
+            return React.createElement('div', { key: childName, style: treeStyles.childWrapper },
+              // Vertical connector from horizontal line
+              unit.children.length > 1 && React.createElement('div', { style: treeStyles.childConnector }),
+              renderPersonNode(child)
+            );
+          })
         )
-      : viewMode === 'visual'
-        ? React.createElement('div', { style: styles.treeContainer, className: 'tree-container' },
-            familyData.roots.map(person => renderTreeNode(person.fullName))
+      )
+    );
+  };
+
+  // Detail Modal for selected person
+  const renderDetailModal = () => {
+    if (!selectedPerson) return null;
+    
+    const person = selectedPerson;
+    const personData = familyData.people[person.fullName];
+    const siblings = members.filter(m => 
+      m.fullName !== person.fullName &&
+      ((person.fatherName && m.fatherName === person.fatherName) ||
+       (person.motherName && m.motherName === person.motherName))
+    );
+    
+    return React.createElement('div', { style: treeStyles.modalOverlay, onClick: () => setSelectedPerson(null) },
+      React.createElement('div', { style: treeStyles.detailModal, onClick: e => e.stopPropagation() },
+        React.createElement('button', { style: treeStyles.modalClose, onClick: () => setSelectedPerson(null) }, '✕'),
+        
+        // Photo
+        React.createElement('div', { style: treeStyles.modalPhoto },
+          person.photo
+            ? React.createElement('img', { src: person.photo, alt: person.fullName, style: treeStyles.modalPhotoImg })
+            : React.createElement('div', { style: treeStyles.modalPhotoPlaceholder },
+                `${person.firstName?.[0] || ''}${person.lastName?.[0] || ''}`
+              )
+        ),
+        
+        // Name
+        React.createElement('h2', { style: treeStyles.modalName }, person.fullName),
+        person.nickname && React.createElement('p', { style: treeStyles.modalNickname }, `"${person.nickname}"`),
+        person.relation && React.createElement('p', { style: treeStyles.modalRelationType }, person.relation),
+        
+        // Relationships
+        React.createElement('div', { style: treeStyles.relationshipsSection },
+          person.fatherName && React.createElement('div', { style: treeStyles.relationItem },
+            React.createElement('span', { style: treeStyles.relationLabel }, '👨 Father:'),
+            React.createElement('span', { style: treeStyles.relationValue }, person.fatherName)
+          ),
+          person.motherName && React.createElement('div', { style: treeStyles.relationItem },
+            React.createElement('span', { style: treeStyles.relationLabel }, '👩 Mother:'),
+            React.createElement('span', { style: treeStyles.relationValue }, person.motherName)
+          ),
+          personData?.spouse && React.createElement('div', { style: treeStyles.relationItem },
+            React.createElement('span', { style: treeStyles.relationLabel }, '❤️ Spouse:'),
+            React.createElement('span', { style: treeStyles.relationValue }, personData.spouse)
+          ),
+          siblings.length > 0 && React.createElement('div', { style: treeStyles.relationItem },
+            React.createElement('span', { style: treeStyles.relationLabel }, '👫 Siblings:'),
+            React.createElement('span', { style: treeStyles.relationValue }, siblings.map(s => s.fullName).join(', '))
+          ),
+          personData?.children?.length > 0 && React.createElement('div', { style: treeStyles.relationItem },
+            React.createElement('span', { style: treeStyles.relationLabel }, '👶 Children:'),
+            React.createElement('span', { style: treeStyles.relationValue }, personData.children.join(', '))
           )
-        : React.createElement('div', { style: styles.listContainer },
-            members.map(member =>
-              React.createElement('div', {
-                key: member.id,
-                style: styles.listItem,
-                className: 'list-item',
-                onClick: () => setSelectedPerson(member)
-              },
-                React.createElement('div', { style: styles.listPhoto },
-                  member.photo
-                    ? React.createElement('img', { src: member.photo, alt: member.fullName, style: styles.listPhotoImg })
-                    : React.createElement('div', { style: styles.listPhotoPlaceholder },
-                        `${member.firstName?.[0] || ''}${member.lastName?.[0] || ''}`
-                      )
+        ),
+        
+        // Contact info
+        (person.email || person.phone || person.location) && React.createElement('div', { style: treeStyles.contactSection },
+          person.location && React.createElement('div', { style: treeStyles.contactItem }, '📍 ' + person.location),
+          person.email && React.createElement('div', { style: treeStyles.contactItem }, '✉️ ' + person.email),
+          person.phone && React.createElement('div', { style: treeStyles.contactItem }, '📱 ' + person.phone)
+        ),
+        
+        // Bio
+        person.bio && React.createElement('div', { style: treeStyles.bioSection },
+          React.createElement('h4', { style: treeStyles.bioTitle }, 'About'),
+          React.createElement('p', { style: treeStyles.bioText }, person.bio)
+        ),
+        
+        // Admin edit button
+        isAdmin && React.createElement('button', {
+          style: treeStyles.editButton,
+          onClick: () => {
+            setEditingPerson(person);
+            setShowEditModal(true);
+            setSelectedPerson(null);
+          }
+        }, '✎ Edit Member')
+      )
+    );
+  };
+
+  return React.createElement('div', { style: treeStyles.treePage },
+    // Header
+    React.createElement('div', { style: treeStyles.treeHeader },
+      React.createElement('h1', { style: treeStyles.pageTitle }, 'Family Tree'),
+      React.createElement('p', { style: treeStyles.pageSubtitle }, 
+        `${members.length} family members • Click on anyone to see details`
+      )
+    ),
+    
+    // Controls
+    React.createElement('div', { style: treeStyles.controls },
+      React.createElement('div', { style: treeStyles.zoomControls },
+        React.createElement('button', {
+          style: treeStyles.zoomButton,
+          onClick: () => setZoom(z => Math.max(0.5, z - 0.1))
+        }, '−'),
+        React.createElement('span', { style: treeStyles.zoomLevel }, `${Math.round(zoom * 100)}%`),
+        React.createElement('button', {
+          style: treeStyles.zoomButton,
+          onClick: () => setZoom(z => Math.min(1.5, z + 0.1))
+        }, '+'),
+        React.createElement('button', {
+          style: treeStyles.resetButton,
+          onClick: () => setZoom(1)
+        }, 'Reset')
+      ),
+      
+      // Legend
+      React.createElement('div', { style: treeStyles.legend },
+        React.createElement('span', { style: treeStyles.legendItem }, '❤️ Married'),
+        React.createElement('span', { style: treeStyles.legendItem }, '│ Parent-Child'),
+        React.createElement('span', { style: treeStyles.legendItem }, '─ Siblings')
+      )
+    ),
+    
+    // Tree container
+    members.length === 0
+      ? React.createElement('div', { style: treeStyles.emptyState },
+          React.createElement('span', { style: treeStyles.emptyIcon }, '🌱'),
+          React.createElement('h3', { style: treeStyles.emptyTitle }, 'No family members yet'),
+          React.createElement('p', { style: treeStyles.emptyText }, 'Add members to start building your family tree!')
+        )
+      : React.createElement('div', { style: treeStyles.treeScrollContainer },
+          React.createElement('div', { 
+            style: { 
+              ...treeStyles.treeCanvas,
+              transform: `scale(${zoom})`,
+              transformOrigin: 'top center'
+            } 
+          },
+            // Render each generation
+            familyData.generations.map((generation, genIndex) => 
+              React.createElement('div', { key: genIndex, style: treeStyles.generationRow },
+                React.createElement('div', { style: treeStyles.generationLabel }, 
+                  genIndex === 0 ? '👑 Ancestors' : 
+                  genIndex === 1 ? '👨‍👩‍👧 Parents' : 
+                  genIndex === 2 ? '👶 Children' : 
+                  genIndex === 3 ? '🧒 Grandchildren' : 
+                  `Generation ${genIndex + 1}`
                 ),
-                React.createElement('div', { style: styles.listInfo },
-                  React.createElement('h4', { style: styles.listName, className: 'list-name' }, member.fullName),
-                  (member.fatherName || member.motherName) && React.createElement('p', { style: styles.listParents, className: 'list-parents' },
-                    [member.fatherName, member.motherName].filter(Boolean).join(' & ')
-                  )
+                React.createElement('div', { style: treeStyles.generationMembers },
+                  generation.map(unit => renderFamilyUnit(unit, genIndex))
                 )
               )
             )
-          ),
-
-    selectedPerson && React.createElement(MemberModal, {
-      member: selectedPerson,
-      onClose: () => setSelectedPerson(null)
+          )
+        ),
+    
+    // Detail Modal
+    renderDetailModal(),
+    
+    // Edit Modal (for admin)
+    showEditModal && editingPerson && React.createElement(EditModal, {
+      member: editingPerson,
+      existingMembers: members,
+      onSave: (data) => {
+        if (onEditMember) {
+          onEditMember(editingPerson.id, data);
+        }
+        setShowEditModal(false);
+        setEditingPerson(null);
+      },
+      onClose: () => {
+        setShowEditModal(false);
+        setEditingPerson(null);
+      }
     })
   );
 }
+
+// Tree-specific styles
+const treeStyles = {
+  treePage: {
+    padding: '20px',
+    maxWidth: '100%',
+  },
+  treeHeader: {
+    textAlign: 'center',
+    marginBottom: '20px',
+  },
+  pageTitle: {
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '8px',
+  },
+  pageSubtitle: {
+    fontSize: '16px',
+    color: '#7a8a82',
+  },
+  controls: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '16px',
+    marginBottom: '20px',
+    padding: '16px',
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+  },
+  zoomControls: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  zoomButton: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    border: '2px solid #e5e5e5',
+    backgroundColor: 'white',
+    fontSize: '20px',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  zoomLevel: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#4a5a52',
+    minWidth: '50px',
+    textAlign: 'center',
+  },
+  resetButton: {
+    padding: '8px 16px',
+    borderRadius: '8px',
+    border: '2px solid #e5e5e5',
+    backgroundColor: 'white',
+    fontSize: '13px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    color: '#6a7a72',
+  },
+  legend: {
+    display: 'flex',
+    gap: '20px',
+    fontSize: '13px',
+    color: '#7a8a82',
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px',
+  },
+  treeScrollContainer: {
+    overflowX: 'auto',
+    overflowY: 'visible',
+    padding: '20px 0',
+  },
+  treeCanvas: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    minWidth: 'fit-content',
+    padding: '20px',
+    transition: 'transform 0.2s ease',
+  },
+  generationRow: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    marginBottom: '40px',
+    width: '100%',
+  },
+  generationLabel: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#9aa99f',
+    marginBottom: '16px',
+    padding: '6px 16px',
+    backgroundColor: '#f0f7f4',
+    borderRadius: '20px',
+  },
+  generationMembers: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '40px',
+  },
+  familyUnit: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  parentsRow: {
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  coupleWrapper: {
+    display: 'flex',
+    alignItems: 'center',
+  },
+  marriageConnector: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    margin: '0 8px',
+  },
+  marriageLine: {
+    width: '40px',
+    height: '3px',
+    backgroundColor: '#c9a959',
+    borderRadius: '2px',
+  },
+  marriageHeart: {
+    fontSize: '14px',
+    marginTop: '-10px',
+  },
+  personNode: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    padding: '12px',
+    backgroundColor: 'white',
+    borderRadius: '16px',
+    boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+    border: '2px solid #e8e8e8',
+    minWidth: '100px',
+    maxWidth: '130px',
+    transition: 'all 0.2s ease',
+    cursor: 'pointer',
+  },
+  personPhoto: {
+    width: '60px',
+    height: '60px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    marginBottom: '8px',
+    border: '3px solid #c9a959',
+  },
+  personPhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  personPhotoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#2d4a3e',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 600,
+    fontSize: '18px',
+  },
+  personName: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#2d4a3e',
+    textAlign: 'center',
+    lineHeight: '1.2',
+  },
+  personNickname: {
+    fontSize: '11px',
+    color: '#c9a959',
+    fontStyle: 'italic',
+  },
+  personRelation: {
+    fontSize: '10px',
+    color: '#9aa99f',
+    marginTop: '2px',
+  },
+  verticalLine: {
+    width: '3px',
+    height: '30px',
+    backgroundColor: '#c9a959',
+    margin: '0 auto',
+  },
+  childrenSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  horizontalLine: {
+    height: '3px',
+    backgroundColor: '#c9a959',
+    width: '100%',
+    maxWidth: '400px',
+    marginBottom: '0',
+  },
+  childrenRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: '20px',
+    flexWrap: 'wrap',
+  },
+  childWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  childConnector: {
+    width: '3px',
+    height: '20px',
+    backgroundColor: '#c9a959',
+  },
+  // Modal styles
+  modalOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    padding: '20px',
+  },
+  detailModal: {
+    backgroundColor: 'white',
+    borderRadius: '24px',
+    padding: '32px',
+    maxWidth: '450px',
+    width: '100%',
+    maxHeight: '85vh',
+    overflow: 'auto',
+    position: 'relative',
+    textAlign: 'center',
+  },
+  modalClose: {
+    position: 'absolute',
+    top: '16px',
+    right: '16px',
+    background: 'none',
+    border: 'none',
+    fontSize: '24px',
+    cursor: 'pointer',
+    color: '#9a9a9a',
+  },
+  modalPhoto: {
+    width: '120px',
+    height: '120px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    margin: '0 auto 16px',
+    border: '4px solid #c9a959',
+  },
+  modalPhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  modalPhotoPlaceholder: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#2d4a3e',
+    color: 'white',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 600,
+    fontSize: '36px',
+  },
+  modalName: {
+    fontSize: '24px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '4px',
+  },
+  modalNickname: {
+    fontSize: '16px',
+    color: '#c9a959',
+    fontStyle: 'italic',
+    marginBottom: '8px',
+  },
+  modalRelationType: {
+    fontSize: '14px',
+    color: '#7a8a82',
+    marginBottom: '20px',
+    padding: '4px 12px',
+    backgroundColor: '#f0f7f4',
+    borderRadius: '12px',
+    display: 'inline-block',
+  },
+  relationshipsSection: {
+    textAlign: 'left',
+    padding: '16px',
+    backgroundColor: '#f8f6f1',
+    borderRadius: '12px',
+    marginBottom: '16px',
+  },
+  relationItem: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '8px',
+    fontSize: '14px',
+  },
+  relationLabel: {
+    color: '#7a8a82',
+    fontWeight: 500,
+    minWidth: '90px',
+  },
+  relationValue: {
+    color: '#2d4a3e',
+    fontWeight: 600,
+  },
+  contactSection: {
+    textAlign: 'left',
+    padding: '12px 16px',
+    backgroundColor: '#e8f5e9',
+    borderRadius: '12px',
+    marginBottom: '16px',
+  },
+  contactItem: {
+    fontSize: '13px',
+    color: '#4a5a52',
+    marginBottom: '6px',
+  },
+  bioSection: {
+    textAlign: 'left',
+    padding: '16px',
+    backgroundColor: '#fff8e1',
+    borderRadius: '12px',
+    marginBottom: '16px',
+  },
+  bioTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#9aa99f',
+    textTransform: 'uppercase',
+    marginBottom: '8px',
+  },
+  bioText: {
+    fontSize: '14px',
+    color: '#4a5a52',
+    lineHeight: '1.5',
+  },
+  editButton: {
+    width: '100%',
+    padding: '12px',
+    backgroundColor: '#2d4a3e',
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  emptyState: {
+    textAlign: 'center',
+    padding: '60px 20px',
+    backgroundColor: 'white',
+    borderRadius: '16px',
+  },
+  emptyIcon: {
+    fontSize: '48px',
+    display: 'block',
+    marginBottom: '16px',
+  },
+  emptyTitle: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#2d4a3e',
+    marginBottom: '8px',
+  },
+  emptyText: {
+    fontSize: '14px',
+    color: '#7a8a82',
+  },
+};
 
 // ============================================
 // ADMIN PAGE
@@ -1044,6 +1904,7 @@ function AdminPage({
 
     editingMember && React.createElement(EditModal, {
       member: editingMember,
+      existingMembers: approvedMembers,
       onSave: (data) => {
         onEdit(editingMember.id, data);
         setEditingMember(null);
@@ -1082,6 +1943,10 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
         React.createElement('span', { style: styles.adminDetailLabel }, 'Mother: '),
         React.createElement('span', null, member.motherName)
       ),
+      member.spouseName && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Spouse: '),
+        React.createElement('span', null, member.spouseName)
+      ),
       member.email && React.createElement('div', { style: styles.adminDetailRow, className: 'admin-detail-row' },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Email: '),
         React.createElement('span', null, member.email)
@@ -1114,7 +1979,7 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
   );
 }
 
-function EditModal({ member, onSave, onClose }) {
+function EditModal({ member, existingMembers = [], onSave, onClose }) {
   const [formData, setFormData] = useState({
     salutation: member.salutation || '',
     customSalutation: '',
@@ -1123,6 +1988,7 @@ function EditModal({ member, onSave, onClose }) {
     nickname: member.nickname || '',
     fatherName: member.fatherName || '',
     motherName: member.motherName || '',
+    spouseName: member.spouseName || '',
     relation: member.relation || '',
     email: member.email || '',
     phone: member.phone || '',
@@ -1136,6 +2002,9 @@ function EditModal({ member, onSave, onClose }) {
     !SALUTATION_OPTIONS.slice(0, -1).some(opt => opt.value === formData.salutation);
   
   const [showCustomInput, setShowCustomInput] = useState(isCustomSalutation);
+
+  // Filter out current member from dropdown options
+  const otherMembers = existingMembers.filter(m => m.fullName !== member.fullName);
 
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -1223,38 +2092,107 @@ function EditModal({ member, onSave, onClose }) {
           })
         ),
         
+        // Father with dropdown
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
           React.createElement('div', { style: styles.editField, className: 'edit-field' },
             React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, "Father's Name"),
+            React.createElement('select', {
+              value: otherMembers.some(m => m.fullName === formData.fatherName) ? formData.fatherName : '',
+              onChange: (e) => handleChange('fatherName', e.target.value),
+              style: styles.editSelect,
+              className: 'edit-select'
+            },
+              React.createElement('option', { value: '' }, '-- Select from members --'),
+              otherMembers
+                .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+                .map(m => React.createElement('option', { key: m.id, value: m.fullName }, m.fullName))
+            ),
             React.createElement('input', {
               type: 'text',
               value: formData.fatherName,
               onChange: (e) => handleChange('fatherName', e.target.value),
-              style: styles.editInput,
+              style: { ...styles.editInput, marginTop: '4px', fontSize: '12px' },
+              placeholder: 'Or type name manually',
               className: 'edit-input'
             })
           ),
+          // Mother with dropdown
           React.createElement('div', { style: styles.editField, className: 'edit-field' },
             React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, "Mother's Name"),
+            React.createElement('select', {
+              value: otherMembers.some(m => m.fullName === formData.motherName) ? formData.motherName : '',
+              onChange: (e) => handleChange('motherName', e.target.value),
+              style: styles.editSelect,
+              className: 'edit-select'
+            },
+              React.createElement('option', { value: '' }, '-- Select from members --'),
+              otherMembers
+                .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+                .map(m => React.createElement('option', { key: m.id, value: m.fullName }, m.fullName))
+            ),
             React.createElement('input', {
               type: 'text',
               value: formData.motherName,
               onChange: (e) => handleChange('motherName', e.target.value),
-              style: styles.editInput,
+              style: { ...styles.editInput, marginTop: '4px', fontSize: '12px' },
+              placeholder: 'Or type name manually',
               className: 'edit-input'
             })
           )
         ),
         
+        // Spouse with dropdown
         React.createElement('div', { style: styles.editField, className: 'edit-field' },
-          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'Relation'),
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, "Spouse/Partner's Name"),
+          React.createElement('select', {
+            value: otherMembers.some(m => m.fullName === formData.spouseName) ? formData.spouseName : '',
+            onChange: (e) => handleChange('spouseName', e.target.value),
+            style: styles.editSelect,
+            className: 'edit-select'
+          },
+            React.createElement('option', { value: '' }, '-- Select from members --'),
+            otherMembers
+              .sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''))
+              .map(m => React.createElement('option', { key: m.id, value: m.fullName }, m.fullName))
+          ),
           React.createElement('input', {
             type: 'text',
-            value: formData.relation,
-            onChange: (e) => handleChange('relation', e.target.value),
-            style: styles.editInput,
+            value: formData.spouseName,
+            onChange: (e) => handleChange('spouseName', e.target.value),
+            style: { ...styles.editInput, marginTop: '4px', fontSize: '12px' },
+            placeholder: 'Or type name manually',
             className: 'edit-input'
           })
+        ),
+        
+        // Relation dropdown
+        React.createElement('div', { style: styles.editField, className: 'edit-field' },
+          React.createElement('label', { style: styles.editLabel, className: 'edit-label' }, 'How they joined the family'),
+          React.createElement('select', {
+            value: RELATION_OPTIONS.some(opt => opt.value === formData.relation) ? formData.relation : 'custom',
+            onChange: (e) => {
+              if (e.target.value === 'custom') {
+                handleChange('relation', '');
+              } else {
+                handleChange('relation', e.target.value);
+              }
+            },
+            style: styles.editSelect,
+            className: 'edit-select'
+          },
+            RELATION_OPTIONS.map(opt => 
+              React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+            )
+          ),
+          (!RELATION_OPTIONS.some(opt => opt.value === formData.relation) || formData.relation === '') &&
+            React.createElement('input', {
+              type: 'text',
+              value: formData.relation,
+              onChange: (e) => handleChange('relation', e.target.value),
+              style: { ...styles.editInput, marginTop: '4px' },
+              placeholder: 'Describe their relation...',
+              className: 'edit-input'
+            })
         ),
         
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
@@ -1569,25 +2507,26 @@ const styles = {
   
   submitPage: { animation: 'fadeIn 0.4s ease' },
   formContainer: {
-    backgroundColor: 'white',
-    borderRadius: '24px',
-    padding: '40px',
     maxWidth: '700px',
     margin: '0 auto',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+    padding: '0 16px',
   },
   formHeader: {
     textAlign: 'center',
-    marginBottom: '32px',
+    marginBottom: '24px',
+    padding: '20px',
+    backgroundColor: 'white',
+    borderRadius: '16px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
   },
   formTitle: {
-    fontSize: '32px',
+    fontSize: '28px',
     fontWeight: 700,
     color: '#2d4a3e',
     marginBottom: '8px',
   },
   formSubtitle: {
-    fontSize: '16px',
+    fontSize: '15px',
     color: '#7a8a82',
     margin: 0,
   },
@@ -1611,12 +2550,13 @@ const styles = {
     margin: 0,
     lineHeight: 1.5,
   },
-  form: { display: 'flex', flexDirection: 'column', gap: '24px' },
+  form: { display: 'flex', flexDirection: 'column', gap: '0' },
   photoSection: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     gap: '8px',
+    marginBottom: '20px',
   },
   photoUpload: {
     width: '120px',
@@ -1664,10 +2604,75 @@ const styles = {
     gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '16px',
   },
+  formSection: {
+    backgroundColor: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    marginBottom: '20px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
+  },
+  sectionHeader: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: '10px',
+    marginBottom: '20px',
+    paddingBottom: '12px',
+    borderBottom: '2px solid #f0f0f0',
+  },
+  sectionIcon: {
+    fontSize: '24px',
+  },
+  sectionTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#2d4a3e',
+    margin: 0,
+    flex: 1,
+  },
+  sectionHint: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    width: '100%',
+  },
+  requiredNote: {
+    fontSize: '11px',
+    color: '#c9a959',
+    backgroundColor: '#fff8e1',
+    padding: '4px 10px',
+    borderRadius: '12px',
+  },
+  formRow: {
+    display: 'flex',
+    gap: '16px',
+    flexWrap: 'wrap',
+    marginBottom: '16px',
+  },
+  fieldHint: {
+    display: 'block',
+    fontSize: '11px',
+    color: '#9aa99f',
+    marginTop: '6px',
+    fontStyle: 'italic',
+  },
+  infoBox: {
+    backgroundColor: '#f0f7f4',
+    borderRadius: '10px',
+    padding: '12px 16px',
+    marginBottom: '20px',
+    borderLeft: '4px solid #2d4a3e',
+  },
+  infoText: {
+    fontSize: '13px',
+    color: '#4a5a52',
+    margin: 0,
+    lineHeight: 1.5,
+  },
   formField: {
     display: 'flex',
     flexDirection: 'column',
     gap: '6px',
+    marginBottom: '16px',
   },
   formFullWidth: {
     display: 'flex',
@@ -2177,8 +3182,45 @@ const styles = {
   treeChildren: {
     marginLeft: '24px',
     marginTop: '8px',
-    borderLeft: '2px solid #e5e5e5',
+    borderLeft: '2px solid #c9a959',
     paddingLeft: '16px',
+  },
+  coupleContainer: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: '4px',
+  },
+  spouseConnector: {
+    fontSize: '16px',
+    margin: '0 4px',
+  },
+  childrenLabel: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    fontWeight: 600,
+    marginBottom: '8px',
+    paddingLeft: '4px',
+  },
+  treeLegend: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    gap: '16px',
+    marginBottom: '16px',
+    padding: '12px 16px',
+    backgroundColor: '#f0f7f4',
+    borderRadius: '10px',
+    fontSize: '13px',
+  },
+  legendItem: {
+    color: '#5a6b63',
+  },
+  legendNote: {
+    color: '#7a8a82',
+    fontStyle: 'italic',
+    fontSize: '12px',
+    width: '100%',
+    marginTop: '4px',
   },
   
   listContainer: {
@@ -2228,6 +3270,21 @@ const styles = {
   },
   listParents: {
     fontSize: '13px',
+    color: '#7a8a82',
+    margin: '2px 0 0 0',
+  },
+  listSpouse: {
+    fontSize: '13px',
+    color: '#c9a959',
+    margin: '2px 0 0 0',
+  },
+  listSiblings: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    margin: '2px 0 0 0',
+  },
+  listRelation: {
+    fontSize: '12px',
     color: '#7a8a82',
     margin: '2px 0 0 0',
   },
