@@ -203,7 +203,7 @@ function Header({ currentPage, setCurrentPage, isAdmin, pendingCount }) {
       },
         React.createElement('span', { style: styles.logoIcon }, '🌿'),
         React.createElement('div', null,
-          React.createElement('h1', { style: styles.logoText }, 'Formusoh/Fomuso/Fomusoh/Fomesso Family'),
+          React.createElement('h1', { style: styles.logoText }, 'Formusoh/Fomuso/Fomusoh Family'),
           React.createElement('span', { style: styles.logoSubtext }, 'Heritage & Connections')
         )
       ),
