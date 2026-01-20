@@ -203,7 +203,7 @@ function Header({ currentPage, setCurrentPage, isAdmin, pendingCount }) {
       },
         React.createElement('span', { style: styles.logoIcon }, '🌿'),
         React.createElement('div', null,
-          React.createElement('h1', { style: styles.logoText }, 'Our Family'),
+          React.createElement('h1', { style: styles.logoText }, 'Formusoh/Fomuso/Fomusoh/Fomesso Family'),
           React.createElement('span', { style: styles.logoSubtext }, 'Heritage & Connections')
         )
       ),
@@ -242,7 +242,7 @@ function HomePage({ setCurrentPage, memberCount }) {
   return React.createElement('div', { style: styles.homePage },
     React.createElement('div', { style: styles.heroSection },
       React.createElement('div', { style: styles.heroContent },
-        React.createElement('h1', { style: styles.heroTitle }, 'Welcome to Our Family'),
+        React.createElement('h1', { style: styles.heroTitle }, 'Welcome to the Formusoh/Fomuso/Fomusoh/Fomesso Family Page'),
         React.createElement('p', { style: styles.heroSubtitle },
           'A place to connect, share, and preserve our family history for generations to come.'
         ),
