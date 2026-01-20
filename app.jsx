@@ -7,6 +7,20 @@ const { useState, useEffect, useCallback, useMemo } = React;
 
 const ADMIN_PASSWORD = "family2026"; // Change this to your desired password
 
+// Salutation options
+const SALUTATION_OPTIONS = [
+  { value: '', label: 'Select...' },
+  { value: 'Ba', label: 'Ba' },
+  { value: 'Na', label: 'Na' },
+  { value: 'Ma', label: 'Ma' },
+  { value: 'Ni', label: 'Ni' },
+  { value: 'Bambodt', label: 'Bambodt' },
+  { value: 'Nimbang', label: 'Nimbang' },
+  { value: 'Tangwi', label: 'Tangwi' },
+  { value: 'Nambodt', label: 'Nambodt' },
+  { value: 'custom', label: 'Other (type your own)' },
+];
+
 // Helper to generate unique IDs
 const generateId = () => `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
@@ -306,12 +320,17 @@ function FeatureCard({ icon, title, description, action }) {
 // ============================================
 function SubmitPage({ onSubmit }) {
   const [formData, setFormData] = useState({
+    salutation: '',
+    customSalutation: '',
     firstName: '',
     lastName: '',
     nickname: '',
     fatherName: '',
     motherName: '',
     relation: '',
+    email: '',
+    phone: '',
+    location: '',
     bio: '',
     photo: null,
   });
@@ -368,10 +387,6 @@ function SubmitPage({ onSubmit }) {
     const newErrors = {};
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
-    if (!formData.fatherName.trim()) newErrors.fatherName = "Father's name is required";
-    if (!formData.motherName.trim()) newErrors.motherName = "Mother's name is required";
-    if (!formData.relation.trim()) newErrors.relation = 'Relation to family is required';
-    if (!formData.bio.trim()) newErrors.bio = 'A short bio is required';
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -381,9 +396,16 @@ function SubmitPage({ onSubmit }) {
     if (!validate()) return;
     
     setIsSubmitting(true);
+    
+    // Determine the final salutation
+    const finalSalutation = formData.salutation === 'custom' 
+      ? formData.customSalutation 
+      : formData.salutation;
+    
     await onSubmit({
       ...formData,
-      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+      salutation: finalSalutation,
+      fullName: `${finalSalutation ? finalSalutation + ' ' : ''}${formData.firstName} ${formData.lastName}`.trim(),
     });
     setIsSubmitting(false);
   };
@@ -394,6 +416,14 @@ function SubmitPage({ onSubmit }) {
         React.createElement('h1', { style: styles.formTitle, className: 'form-title' }, 'Join Our Family Tree'),
         React.createElement('p', { style: styles.formSubtitle },
           'Submit your information to be added to our family directory.'
+        ),
+        React.createElement('div', { style: styles.formGuide },
+          React.createElement('p', { style: styles.guideText },
+            '📝 Only your first and last name are required. All other fields are optional but help us build a richer family history. Feel free to share as much or as little as you\'re comfortable with.'
+          ),
+          React.createElement('p', { style: styles.guideTextSmall },
+            '💡 If you\'d like other family members to be able to contact you, please provide your email, phone number, or location. This information will be visible to other family members in the directory.'
+          )
         )
       ),
 
@@ -418,6 +448,26 @@ function SubmitPage({ onSubmit }) {
         ),
 
         React.createElement('div', { style: styles.formGrid, className: 'form-grid' },
+          // Salutation Field
+          React.createElement('div', { style: styles.formField },
+            React.createElement('label', { style: styles.label }, 'Salutation'),
+            React.createElement('select', {
+              value: formData.salutation,
+              onChange: (e) => handleChange('salutation', e.target.value),
+              style: styles.select
+            },
+              SALUTATION_OPTIONS.map(opt => 
+                React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+              )
+            ),
+            formData.salutation === 'custom' && React.createElement('input', {
+              type: 'text',
+              value: formData.customSalutation,
+              onChange: (e) => handleChange('customSalutation', e.target.value),
+              style: { ...styles.input, marginTop: '8px' },
+              placeholder: 'Enter your salutation'
+            })
+          ),
           React.createElement(FormField, {
             label: 'First Name *',
             value: formData.firstName,
@@ -439,38 +489,54 @@ function SubmitPage({ onSubmit }) {
             placeholder: 'Other name (optional)'
           }),
           React.createElement(FormField, {
-            label: 'Relation to Family *',
+            label: 'Relation to Family',
             value: formData.relation,
             onChange: (v) => handleChange('relation', v),
-            error: errors.relation,
-            placeholder: 'e.g., Son of John Smith'
+            placeholder: 'e.g., Son of John Smith (optional)'
           }),
           React.createElement(FormField, {
-            label: "Father's Name *",
+            label: "Father's Name",
             value: formData.fatherName,
             onChange: (v) => handleChange('fatherName', v),
-            error: errors.fatherName,
-            placeholder: "Father's full name"
+            placeholder: "Father's full name (optional)"
           }),
           React.createElement(FormField, {
-            label: "Mother's Name *",
+            label: "Mother's Name",
             value: formData.motherName,
             onChange: (v) => handleChange('motherName', v),
-            error: errors.motherName,
-            placeholder: "Mother's full name"
-          })
+            placeholder: "Mother's full name (optional)"
+          }),
+          React.createElement(FormField, {
+            label: "Email",
+            value: formData.email,
+            onChange: (v) => handleChange('email', v),
+            placeholder: "Your email (optional)",
+            type: "email"
+          }),
+          React.createElement(FormField, {
+            label: "Phone",
+            value: formData.phone,
+            onChange: (v) => handleChange('phone', v),
+            placeholder: "Your phone (optional)",
+            type: "tel"
+          }),
+          React.createElement(FormField, {
+            label: "Location",
+            value: formData.location,
+            onChange: (v) => handleChange('location', v),
+            placeholder: "City, State/Country (optional)"
+          }),
         ),
 
         React.createElement('div', { style: styles.formFullWidth },
-          React.createElement('label', { style: styles.label }, 'About You *'),
+          React.createElement('label', { style: styles.label }, 'About You'),
           React.createElement('textarea', {
             value: formData.bio,
             onChange: (e) => handleChange('bio', e.target.value),
-            style: {...styles.textarea, ...(errors.bio ? styles.inputError : {})},
-            placeholder: 'Share a short paragraph about yourself...',
+            style: styles.textarea,
+            placeholder: 'Share a short paragraph about yourself (optional)...',
             rows: 4
-          }),
-          errors.bio && React.createElement('span', { style: styles.errorText }, errors.bio)
+          })
         ),
 
         React.createElement('button', {
@@ -515,7 +581,8 @@ function DirectoryPage({ members }) {
         member.nickname?.toLowerCase().includes(searchLower) ||
         member.relation?.toLowerCase().includes(searchLower) ||
         member.fatherName?.toLowerCase().includes(searchLower) ||
-        member.motherName?.toLowerCase().includes(searchLower)
+        member.motherName?.toLowerCase().includes(searchLower) ||
+        member.location?.toLowerCase().includes(searchLower)
       );
     });
 
@@ -553,7 +620,7 @@ function DirectoryPage({ members }) {
         React.createElement('span', { style: styles.searchIcon }, '🔍'),
         React.createElement('input', {
           type: 'text',
-          placeholder: 'Search by name...',
+          placeholder: 'Search by name or location...',
           value: searchTerm,
           onChange: (e) => setSearchTerm(e.target.value),
           style: styles.searchInput
@@ -614,7 +681,8 @@ function MemberCard({ member, onClick }) {
     React.createElement('div', { style: styles.memberInfo },
       React.createElement('h3', { style: styles.memberName }, member.fullName),
       member.nickname && React.createElement('span', { style: styles.memberNickname }, `"${member.nickname}"`),
-      React.createElement('span', { style: styles.memberRelation }, member.relation)
+      member.relation && React.createElement('span', { style: styles.memberRelation }, member.relation),
+      member.location && React.createElement('span', { style: styles.memberLocation }, `📍 ${member.location}`)
     ),
     React.createElement('span', { style: styles.memberArrow }, '→')
   );
@@ -638,24 +706,42 @@ function MemberModal({ member, onClose }) {
           React.createElement('h2', { style: styles.modalName, className: 'modal-name' }, member.fullName),
           member.nickname && React.createElement('p', { style: styles.modalNickname }, `"${member.nickname}"`),
           
-          React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
-            React.createElement('div', { style: styles.detailItem },
+          // Family Details Section
+          (member.relation || member.fatherName || member.motherName) && React.createElement('div', { style: styles.modalDetails, className: 'modal-details' },
+            member.relation && React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel }, 'Relation'),
               React.createElement('span', { style: styles.detailValue }, member.relation)
             ),
-            React.createElement('div', { style: styles.detailItem },
+            member.fatherName && React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel }, 'Father'),
               React.createElement('span', { style: styles.detailValue }, member.fatherName)
             ),
-            React.createElement('div', { style: styles.detailItem },
+            member.motherName && React.createElement('div', { style: styles.detailItem },
               React.createElement('span', { style: styles.detailLabel }, 'Mother'),
               React.createElement('span', { style: styles.detailValue }, member.motherName)
             )
           ),
           
-          React.createElement('div', { style: styles.modalBio },
-            React.createElement('h4', { style: styles.bioLabel }, 'About'),
-            React.createElement('p', { style: styles.bioText }, member.bio)
+          // Contact Information Section (Email, Phone, Location)
+          (member.location || member.email || member.phone) && React.createElement('div', { style: styles.contactDetails },
+            member.location && React.createElement('div', { style: styles.contactItem },
+              React.createElement('span', { style: styles.contactIcon }, '📍'),
+              React.createElement('span', null, member.location)
+            ),
+            member.email && React.createElement('div', { style: styles.contactItem },
+              React.createElement('span', { style: styles.contactIcon }, '✉️'),
+              React.createElement('a', { href: `mailto:${member.email}`, style: styles.contactLink }, member.email)
+            ),
+            member.phone && React.createElement('div', { style: styles.contactItem },
+              React.createElement('span', { style: styles.contactIcon }, '📱'),
+              React.createElement('a', { href: `tel:${member.phone}`, style: styles.contactLink }, member.phone)
+            )
+          ),
+          
+          // Bio/About Section
+          member.bio && React.createElement('div', { style: styles.modalBioSection },
+            React.createElement('h4', { style: styles.modalBioTitle }, 'About'),
+            React.createElement('p', { style: styles.modalBioText }, member.bio)
           )
         )
       )
@@ -810,8 +896,8 @@ function FamilyTreePage({ members }) {
                 ),
                 React.createElement('div', { style: styles.listInfo },
                   React.createElement('h4', { style: styles.listName, className: 'list-name' }, member.fullName),
-                  React.createElement('p', { style: styles.listParents, className: 'list-parents' },
-                    `${member.fatherName} & ${member.motherName}`
+                  (member.fatherName || member.motherName) && React.createElement('p', { style: styles.listParents, className: 'list-parents' },
+                    [member.fatherName, member.motherName].filter(Boolean).join(' & ')
                   )
                 )
               )
@@ -868,7 +954,7 @@ function AdminPage({
             'Login'
           )
         ),
-        React.createElement('p', { style: styles.loginHint }, 'Default: family2024')
+        React.createElement('p', { style: styles.loginHint }, 'Contact admin for password')
       )
     );
   }
@@ -974,7 +1060,7 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
       React.createElement('div', { style: styles.adminCardInfo },
         React.createElement('h3', { style: styles.adminCardName }, member.fullName),
         member.nickname && React.createElement('span', { style: styles.adminCardNickname }, `"${member.nickname}"`),
-        React.createElement('span', { style: styles.adminCardRelation }, member.relation)
+        member.relation && React.createElement('span', { style: styles.adminCardRelation }, member.relation)
       ),
       React.createElement('div', { style: styles.adminCardTimestamp, className: 'admin-card-timestamp' },
         new Date(member.submittedAt).toLocaleDateString()
@@ -982,17 +1068,29 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
     ),
     
     React.createElement('div', { style: styles.adminCardDetails },
-      React.createElement('div', { style: styles.adminDetailRow },
+      member.fatherName && React.createElement('div', { style: styles.adminDetailRow },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Father: '),
         React.createElement('span', null, member.fatherName)
       ),
-      React.createElement('div', { style: styles.adminDetailRow },
+      member.motherName && React.createElement('div', { style: styles.adminDetailRow },
         React.createElement('span', { style: styles.adminDetailLabel }, 'Mother: '),
         React.createElement('span', null, member.motherName)
+      ),
+      member.email && React.createElement('div', { style: styles.adminDetailRow },
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Email: '),
+        React.createElement('span', null, member.email)
+      ),
+      member.phone && React.createElement('div', { style: styles.adminDetailRow },
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Phone: '),
+        React.createElement('span', null, member.phone)
+      ),
+      member.location && React.createElement('div', { style: styles.adminDetailRow },
+        React.createElement('span', { style: styles.adminDetailLabel }, 'Location: '),
+        React.createElement('span', null, member.location)
       )
     ),
     
-    React.createElement('div', { style: styles.adminCardBio },
+    member.bio && React.createElement('div', { style: styles.adminCardBio },
       React.createElement('p', { style: styles.adminBioText }, member.bio)
     ),
 
@@ -1012,24 +1110,46 @@ function AdminMemberCard({ member, isPending, onApprove, onReject, onEdit, onDel
 
 function EditModal({ member, onSave, onClose }) {
   const [formData, setFormData] = useState({
+    salutation: member.salutation || '',
+    customSalutation: '',
     firstName: member.firstName || '',
     lastName: member.lastName || '',
     nickname: member.nickname || '',
     fatherName: member.fatherName || '',
     motherName: member.motherName || '',
     relation: member.relation || '',
+    email: member.email || '',
+    phone: member.phone || '',
+    location: member.location || '',
     bio: member.bio || '',
     photo: member.photo || null,
   });
 
+  // Check if current salutation is a custom one (not in the predefined options)
+  const isCustomSalutation = formData.salutation && 
+    !SALUTATION_OPTIONS.slice(0, -1).some(opt => opt.value === formData.salutation);
+  
+  const [showCustomInput, setShowCustomInput] = useState(isCustomSalutation);
+
   const handleChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+    if (field === 'salutation' && value === 'custom') {
+      setShowCustomInput(true);
+    } else if (field === 'salutation' && value !== 'custom') {
+      setShowCustomInput(false);
+    }
   };
 
   const handleSave = () => {
+    // Determine the final salutation
+    const finalSalutation = showCustomInput 
+      ? (formData.salutation === 'custom' ? formData.customSalutation : formData.salutation)
+      : formData.salutation;
+    
     onSave({
       ...formData,
-      fullName: `${formData.firstName} ${formData.lastName}`.trim(),
+      salutation: finalSalutation,
+      fullName: `${finalSalutation ? finalSalutation + ' ' : ''}${formData.firstName} ${formData.lastName}`.trim(),
     });
   };
 
@@ -1040,9 +1160,30 @@ function EditModal({ member, onSave, onClose }) {
       React.createElement('h2', { style: styles.editModalTitle }, 'Edit Member'),
       
       React.createElement('div', { style: styles.editForm },
+        // Salutation Field
+        React.createElement('div', { style: styles.editField },
+          React.createElement('label', { style: styles.editLabel }, 'Salutation'),
+          React.createElement('select', {
+            value: showCustomInput ? 'custom' : formData.salutation,
+            onChange: (e) => handleChange('salutation', e.target.value),
+            style: styles.editSelect
+          },
+            SALUTATION_OPTIONS.map(opt => 
+              React.createElement('option', { key: opt.value, value: opt.value }, opt.label)
+            )
+          ),
+          showCustomInput && React.createElement('input', {
+            type: 'text',
+            value: formData.salutation === 'custom' ? formData.customSalutation : formData.salutation,
+            onChange: (e) => handleChange(formData.salutation === 'custom' ? 'customSalutation' : 'salutation', e.target.value),
+            style: { ...styles.editInput, marginTop: '8px' },
+            placeholder: 'Enter salutation'
+          })
+        ),
+        
         React.createElement('div', { style: styles.editRow, className: 'edit-row' },
           React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'First Name'),
+            React.createElement('label', { style: styles.editLabel }, 'First Name *'),
             React.createElement('input', {
               type: 'text',
               value: formData.firstName,
@@ -1051,7 +1192,7 @@ function EditModal({ member, onSave, onClose }) {
             })
           ),
           React.createElement('div', { style: styles.editField },
-            React.createElement('label', { style: styles.editLabel }, 'Last Name'),
+            React.createElement('label', { style: styles.editLabel }, 'Last Name *'),
             React.createElement('input', {
               type: 'text',
               value: formData.lastName,
@@ -1099,6 +1240,40 @@ function EditModal({ member, onSave, onClose }) {
             value: formData.relation,
             onChange: (e) => handleChange('relation', e.target.value),
             style: styles.editInput
+          })
+        ),
+        
+        React.createElement('div', { style: styles.editRow, className: 'edit-row' },
+          React.createElement('div', { style: styles.editField },
+            React.createElement('label', { style: styles.editLabel }, 'Email'),
+            React.createElement('input', {
+              type: 'email',
+              value: formData.email,
+              onChange: (e) => handleChange('email', e.target.value),
+              style: styles.editInput,
+              placeholder: 'Optional'
+            })
+          ),
+          React.createElement('div', { style: styles.editField },
+            React.createElement('label', { style: styles.editLabel }, 'Phone'),
+            React.createElement('input', {
+              type: 'tel',
+              value: formData.phone,
+              onChange: (e) => handleChange('phone', e.target.value),
+              style: styles.editInput,
+              placeholder: 'Optional'
+            })
+          )
+        ),
+        
+        React.createElement('div', { style: styles.editField },
+          React.createElement('label', { style: styles.editLabel }, 'Location'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.location,
+            onChange: (e) => handleChange('location', e.target.value),
+            style: styles.editInput,
+            placeholder: 'City, State/Country (Optional)'
           })
         ),
         
@@ -1231,7 +1406,7 @@ const styles = {
   navIcon: { fontSize: '16px' },
   badge: {
     backgroundColor: '#c9a959',
-    color: '#2d4a3e',
+    color: 'white',
     fontSize: '11px',
     fontWeight: 700,
     padding: '2px 6px',
@@ -1242,92 +1417,99 @@ const styles = {
   main: {
     flex: 1,
     maxWidth: '1200px',
-    width: '100%',
     margin: '0 auto',
-    padding: '20px',
+    width: '100%',
+    padding: '24px',
   },
   
-  homePage: { animation: 'fadeIn 0.5s ease' },
+  homePage: { animation: 'fadeIn 0.4s ease' },
   heroSection: {
-    background: 'linear-gradient(135deg, #f5f0e8 0%, #ebe4d8 100%)',
-    borderRadius: '20px',
-    padding: '50px 30px',
-    marginBottom: '30px',
+    background: 'linear-gradient(135deg, #2d4a3e 0%, #4a6b5d 100%)',
+    borderRadius: '24px',
+    padding: '60px 40px',
+    color: 'white',
     textAlign: 'center',
-    border: '1px solid rgba(0,0,0,0.05)',
+    marginBottom: '40px',
+    boxShadow: '0 10px 40px rgba(45,74,62,0.3)',
   },
   heroContent: { maxWidth: '600px', margin: '0 auto' },
   heroTitle: {
+    fontSize: '42px',
     fontWeight: 700,
-    fontSize: '40px',
-    color: '#2d4a3e',
-    marginBottom: '14px',
+    marginBottom: '16px',
     lineHeight: 1.2,
   },
   heroSubtitle: {
-    fontSize: '16px',
-    color: '#5a6b63',
+    fontSize: '18px',
+    opacity: 0.9,
+    marginBottom: '32px',
     lineHeight: 1.6,
-    marginBottom: '28px',
   },
   heroStats: {
     display: 'flex',
     justifyContent: 'center',
-    marginBottom: '28px',
+    gap: '24px',
+    marginBottom: '32px',
   },
   statCard: {
-    backgroundColor: 'white',
-    padding: '18px 30px',
-    borderRadius: '14px',
-    boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderRadius: '16px',
+    padding: '20px 32px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
   },
   statNumber: {
-    display: 'block',
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
-    color: '#2d4a3e',
+    color: '#c9a959',
   },
-  statLabel: { fontSize: '13px', color: '#7a8a82' },
+  statLabel: {
+    fontSize: '14px',
+    opacity: 0.9,
+    marginTop: '4px',
+  },
   heroCta: {
     display: 'flex',
     gap: '14px',
     justifyContent: 'center',
-    flexWrap: 'wrap',
   },
   primaryButton: {
-    backgroundColor: '#2d4a3e',
-    color: 'white',
+    backgroundColor: '#c9a959',
+    color: '#2d4a3e',
     border: 'none',
-    padding: '14px 26px',
+    padding: '14px 28px',
     borderRadius: '12px',
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    transition: 'transform 0.2s',
   },
   secondaryButton: {
-    backgroundColor: 'white',
-    color: '#2d4a3e',
-    border: '2px solid #2d4a3e',
-    padding: '12px 24px',
+    backgroundColor: 'transparent',
+    color: 'white',
+    border: '2px solid rgba(255,255,255,0.4)',
+    padding: '14px 28px',
     borderRadius: '12px',
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
+    transition: 'all 0.2s',
   },
   
-  featuresSection: { marginBottom: '30px' },
+  featuresSection: { marginBottom: '40px' },
   sectionTitle: {
-    fontWeight: 700,
     fontSize: '28px',
+    fontWeight: 700,
     color: '#2d4a3e',
-    textAlign: 'center',
     marginBottom: '24px',
+    textAlign: 'center',
   },
   featuresGrid: {
     display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+    gridTemplateColumns: 'repeat(3, 1fr)',
     gap: '20px',
   },
   featureCard: {
@@ -1335,57 +1517,83 @@ const styles = {
     borderRadius: '16px',
     padding: '28px',
     cursor: 'pointer',
-    border: '1px solid rgba(0,0,0,0.05)',
+    transition: 'all 0.3s',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    border: '2px solid transparent',
     position: 'relative',
   },
-  featureIcon: { fontSize: '36px', display: 'block', marginBottom: '14px' },
-  featureTitle: {
-    fontWeight: 600,
-    fontSize: '20px',
-    color: '#2d4a3e',
-    marginBottom: '10px',
-  },
-  featureDescription: {
-    fontSize: '14px',
-    color: '#6a7a72',
-    lineHeight: 1.5,
+  featureIcon: {
+    fontSize: '36px',
     marginBottom: '14px',
+    display: 'block',
   },
-  featureArrow: {
-    position: 'absolute',
-    bottom: '20px',
-    right: '20px',
-    fontSize: '22px',
-    color: '#c9a959',
+  featureTitle: {
+    fontSize: '18px',
     fontWeight: 600,
-  },
-  
-  pageTitle: {
-    fontWeight: 700,
-    fontSize: '32px',
-    color: '#2d4a3e',
-    marginBottom: '6px',
-  },
-  pageSubtitle: { fontSize: '14px', color: '#6a7a72' },
-  
-  submitPage: { animation: 'fadeIn 0.5s ease' },
-  formContainer: {
-    backgroundColor: 'white',
-    borderRadius: '20px',
-    padding: '32px',
-    maxWidth: '700px',
-    margin: '0 auto',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
-  },
-  formHeader: { textAlign: 'center', marginBottom: '28px' },
-  formTitle: {
-    fontWeight: 700,
-    fontSize: '28px',
     color: '#2d4a3e',
     marginBottom: '8px',
   },
-  formSubtitle: { fontSize: '14px', color: '#6a7a72' },
-  form: { display: 'flex', flexDirection: 'column', gap: '20px' },
+  featureDescription: {
+    fontSize: '14px',
+    color: '#7a8a82',
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  featureArrow: {
+    position: 'absolute',
+    right: '20px',
+    top: '50%',
+    transform: 'translateY(-50%)',
+    fontSize: '20px',
+    color: '#c9a959',
+    opacity: 0.5,
+  },
+  
+  submitPage: { animation: 'fadeIn 0.4s ease' },
+  formContainer: {
+    backgroundColor: 'white',
+    borderRadius: '24px',
+    padding: '40px',
+    maxWidth: '700px',
+    margin: '0 auto',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+  },
+  formHeader: {
+    textAlign: 'center',
+    marginBottom: '32px',
+  },
+  formTitle: {
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '8px',
+  },
+  formSubtitle: {
+    fontSize: '16px',
+    color: '#7a8a82',
+    margin: 0,
+  },
+  formGuide: {
+    backgroundColor: '#f0f7f4',
+    borderRadius: '12px',
+    padding: '16px 20px',
+    marginTop: '20px',
+    textAlign: 'left',
+    borderLeft: '4px solid #2d4a3e',
+  },
+  guideText: {
+    fontSize: '14px',
+    color: '#4a5a52',
+    margin: '0 0 10px 0',
+    lineHeight: 1.5,
+  },
+  guideTextSmall: {
+    fontSize: '13px',
+    color: '#6a7a72',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  form: { display: 'flex', flexDirection: 'column', gap: '24px' },
   photoSection: {
     display: 'flex',
     flexDirection: 'column',
@@ -1396,49 +1604,90 @@ const styles = {
     width: '120px',
     height: '120px',
     borderRadius: '50%',
-    overflow: 'hidden',
-    position: 'relative',
+    backgroundColor: '#f8f6f1',
+    border: '3px dashed #d5d5d5',
     cursor: 'pointer',
-    border: '3px dashed #c9a959',
-    backgroundColor: '#faf8f4',
+    position: 'relative',
+    overflow: 'hidden',
+    transition: 'all 0.3s',
   },
-  photoPreviewImg: { width: '100%', height: '100%', objectFit: 'cover' },
   photoPlaceholder: {
+    width: '100%',
+    height: '100%',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
     justifyContent: 'center',
-    height: '100%',
-    color: '#9aa99f',
+    color: '#9a9a9a',
     fontSize: '13px',
+    gap: '4px',
   },
-  photoIcon: { fontSize: '28px', marginBottom: '4px' },
+  photoIcon: { fontSize: '28px' },
+  photoPreviewImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   photoInput: {
     position: 'absolute',
-    inset: 0,
+    top: 0,
+    left: 0,
+    width: '100%',
+    height: '100%',
     opacity: 0,
     cursor: 'pointer',
   },
-  photoHint: { fontSize: '11px', color: '#9aa99f' },
+  photoHint: {
+    fontSize: '12px',
+    color: '#9a9a9a',
+  },
   formGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(2, 1fr)',
     gap: '16px',
   },
-  formField: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  formFullWidth: { display: 'flex', flexDirection: 'column', gap: '5px' },
-  label: { fontSize: '13px', fontWeight: 600, color: '#4a5a52' },
+  formField: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  formFullWidth: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  label: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#4a5a52',
+  },
   input: {
     padding: '12px 14px',
     border: '2px solid #e5e5e5',
     borderRadius: '10px',
     fontSize: '15px',
     fontFamily: 'inherit',
+    transition: 'border-color 0.2s',
     outline: 'none',
     width: '100%',
     boxSizing: 'border-box',
   },
-  inputError: { borderColor: '#d9534f' },
+  select: {
+    padding: '12px 14px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '15px',
+    fontFamily: 'inherit',
+    transition: 'border-color 0.2s',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    backgroundColor: 'white',
+    cursor: 'pointer',
+  },
+  inputError: {
+    borderColor: '#d9534f',
+  },
   textarea: {
     padding: '12px 14px',
     border: '2px solid #e5e5e5',
@@ -1450,97 +1699,115 @@ const styles = {
     width: '100%',
     boxSizing: 'border-box',
   },
-  errorText: { fontSize: '11px', color: '#d9534f' },
+  errorText: {
+    fontSize: '12px',
+    color: '#d9534f',
+    marginTop: '2px',
+  },
   submitButton: {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '14px 28px',
+    padding: '16px',
     borderRadius: '12px',
-    fontSize: '15px',
+    fontSize: '16px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    marginTop: '12px',
+    transition: 'all 0.2s',
+    marginTop: '8px',
   },
-  submitButtonDisabled: { opacity: 0.7, cursor: 'not-allowed' },
+  submitButtonDisabled: {
+    backgroundColor: '#9aa99f',
+    cursor: 'not-allowed',
+  },
   
-  directoryPage: { animation: 'fadeIn 0.5s ease' },
-  directoryHeader: { marginBottom: '20px' },
+  directoryPage: { animation: 'fadeIn 0.4s ease' },
+  directoryHeader: {
+    textAlign: 'center',
+    marginBottom: '24px',
+  },
+  pageTitle: {
+    fontSize: '32px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '8px',
+  },
+  pageSubtitle: {
+    fontSize: '16px',
+    color: '#7a8a82',
+    margin: 0,
+  },
   directoryControls: {
     display: 'flex',
     gap: '12px',
-    marginBottom: '20px',
-    flexWrap: 'wrap',
+    marginBottom: '24px',
   },
-  searchBox: { flex: 1, minWidth: '200px', position: 'relative' },
+  searchBox: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    padding: '0 16px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+    minWidth: '250px',
+  },
   searchIcon: {
-    position: 'absolute',
-    left: '14px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    fontSize: '16px',
+    fontSize: '18px',
+    marginRight: '10px',
+    color: '#9a9a9a',
   },
   searchInput: {
-    width: '100%',
-    padding: '12px 14px 12px 42px',
-    border: '2px solid #e5e5e5',
-    borderRadius: '10px',
+    border: 'none',
+    padding: '14px 0',
     fontSize: '15px',
     fontFamily: 'inherit',
-    backgroundColor: 'white',
     outline: 'none',
-    boxSizing: 'border-box',
+    width: '100%',
+    backgroundColor: 'transparent',
   },
   sortButton: {
     backgroundColor: 'white',
     border: '2px solid #e5e5e5',
     padding: '12px 20px',
-    borderRadius: '10px',
+    borderRadius: '12px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
     color: '#4a5a52',
+    whiteSpace: 'nowrap',
   },
   
-  emptyState: {
-    textAlign: 'center',
-    padding: '50px 20px',
-    backgroundColor: 'white',
-    borderRadius: '16px',
+  directoryGrid: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '24px',
   },
-  emptyIcon: { fontSize: '42px', display: 'block', marginBottom: '14px' },
-  emptyTitle: {
-    fontWeight: 600,
-    fontSize: '20px',
-    color: '#2d4a3e',
-    marginBottom: '6px',
+  letterGroup: { marginBottom: '8px' },
+  letterHeader: {
+    fontSize: '14px',
+    fontWeight: 700,
+    color: '#c9a959',
+    marginBottom: '12px',
+    paddingLeft: '4px',
   },
-  emptyText: { fontSize: '14px', color: '#7a8a82' },
-  
-  directoryGrid: { display: 'flex', flexDirection: 'column', gap: '20px' },
-  letterGroup: {
+  membersList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
+  memberCard: {
     backgroundColor: 'white',
     borderRadius: '14px',
-    overflow: 'hidden',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
-  },
-  letterHeader: {
-    backgroundColor: '#2d4a3e',
-    color: 'white',
-    padding: '10px 18px',
-    fontSize: '20px',
-    fontWeight: 600,
-  },
-  membersList: { padding: '6px' },
-  memberCard: {
+    padding: '16px',
     display: 'flex',
     alignItems: 'center',
     gap: '14px',
-    padding: '14px',
-    borderRadius: '10px',
     cursor: 'pointer',
+    transition: 'all 0.2s',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
   },
   memberPhoto: {
     width: '50px',
@@ -1549,7 +1816,11 @@ const styles = {
     overflow: 'hidden',
     flexShrink: 0,
   },
-  memberPhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  memberPhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   memberPhotoPlaceholder: {
     width: '100%',
     height: '100%',
@@ -1561,72 +1832,113 @@ const styles = {
     fontWeight: 600,
     fontSize: '16px',
   },
-  memberInfo: { flex: 1, minWidth: 0 },
+  memberInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+  },
   memberName: {
     fontSize: '16px',
     fontWeight: 600,
     color: '#2d4a3e',
-    marginBottom: '2px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+    margin: 0,
   },
   memberNickname: {
     fontSize: '13px',
     color: '#c9a959',
     fontStyle: 'italic',
-    display: 'block',
-    marginBottom: '2px',
   },
-  memberRelation: { 
-    fontSize: '13px', 
+  memberRelation: {
+    fontSize: '13px',
     color: '#7a8a82',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
   },
-  memberArrow: { fontSize: '18px', color: '#c9a959', flexShrink: 0 },
+  memberLocation: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    marginTop: '2px',
+  },
+  memberArrow: {
+    fontSize: '18px',
+    color: '#d5d5d5',
+  },
+  
+  emptyState: {
+    textAlign: 'center',
+    padding: '60px 20px',
+    color: '#7a8a82',
+  },
+  emptyIcon: {
+    fontSize: '48px',
+    marginBottom: '16px',
+    display: 'block',
+  },
+  emptyTitle: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#4a5a52',
+    marginBottom: '8px',
+  },
+  emptyText: {
+    fontSize: '15px',
+    margin: 0,
+  },
   
   modalOverlay: {
     position: 'fixed',
-    inset: 0,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.6)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 1000,
-    padding: '16px',
+    padding: '20px',
+    animation: 'fadeIn 0.2s ease',
   },
   modal: {
     backgroundColor: 'white',
-    borderRadius: '20px',
+    borderRadius: '24px',
     maxWidth: '500px',
     width: '100%',
     maxHeight: '90vh',
     overflow: 'auto',
     position: 'relative',
+    animation: 'slideIn 0.3s ease',
   },
   modalClose: {
     position: 'absolute',
-    top: '14px',
-    right: '14px',
+    top: '16px',
+    right: '16px',
     background: 'none',
     border: 'none',
-    fontSize: '22px',
+    fontSize: '24px',
     cursor: 'pointer',
-    color: '#7a8a82',
-    zIndex: 10,
+    color: '#9a9a9a',
+    zIndex: 1,
   },
-  modalContent: { padding: '32px' },
+  modalContent: {
+    padding: '32px',
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    textAlign: 'center',
+  },
   modalPhoto: {
     width: '140px',
     height: '140px',
     borderRadius: '50%',
     overflow: 'hidden',
-    margin: '0 auto 20px',
-    border: '4px solid #c9a959',
+    marginBottom: '20px',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
   },
-  modalPhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  modalPhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   modalPhotoPlaceholder: {
     width: '100%',
     height: '100%',
@@ -1636,17 +1948,19 @@ const styles = {
     alignItems: 'center',
     justifyContent: 'center',
     fontWeight: 600,
-    fontSize: '42px',
+    fontSize: '36px',
   },
-  modalInfo: { textAlign: 'center' },
+  modalInfo: {
+    width: '100%',
+  },
   modalName: {
-    fontWeight: 700,
     fontSize: '28px',
+    fontWeight: 700,
     color: '#2d4a3e',
     marginBottom: '4px',
   },
   modalNickname: {
-    fontSize: '15px',
+    fontSize: '16px',
     color: '#c9a959',
     fontStyle: 'italic',
     marginBottom: '20px',
@@ -1654,48 +1968,94 @@ const styles = {
   modalDetails: {
     display: 'grid',
     gridTemplateColumns: 'repeat(3, 1fr)',
-    gap: '14px',
-    backgroundColor: '#f8f6f1',
-    borderRadius: '14px',
-    padding: '16px',
+    gap: '16px',
     marginBottom: '20px',
+    textAlign: 'left',
   },
-  detailItem: { display: 'flex', flexDirection: 'column', gap: '3px' },
+  detailItem: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
   detailLabel: {
     fontSize: '11px',
     fontWeight: 600,
     color: '#9aa99f',
     textTransform: 'uppercase',
+    letterSpacing: '0.5px',
   },
-  detailValue: { fontSize: '14px', color: '#2d4a3e' },
-  modalBio: { textAlign: 'left' },
-  bioLabel: {
-    fontSize: '13px',
-    fontWeight: 600,
+  detailValue: {
+    fontSize: '14px',
     color: '#4a5a52',
-    marginBottom: '6px',
+    fontWeight: 500,
   },
-  bioText: { fontSize: '14px', color: '#5a6b63', lineHeight: 1.6 },
+  contactDetails: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+    backgroundColor: '#f8f6f1',
+    borderRadius: '12px',
+    padding: '16px',
+    marginBottom: '20px',
+    textAlign: 'left',
+  },
+  contactItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    fontSize: '14px',
+    color: '#4a5a52',
+  },
+  contactIcon: {
+    fontSize: '16px',
+  },
+  contactLink: {
+    color: '#2d4a3e',
+    textDecoration: 'none',
+    fontWeight: 500,
+  },
+  modalBioSection: {
+    backgroundColor: '#f8f6f1',
+    borderRadius: '12px',
+    padding: '16px',
+    textAlign: 'left',
+  },
+  modalBioTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#9aa99f',
+    textTransform: 'uppercase',
+    letterSpacing: '0.5px',
+    marginBottom: '8px',
+  },
+  modalBioText: {
+    fontSize: '14px',
+    color: '#5a6b63',
+    lineHeight: 1.6,
+    margin: 0,
+  },
   
-  treePage: { animation: 'fadeIn 0.5s ease' },
-  treeHeader: { marginBottom: '20px' },
+  treePage: { animation: 'fadeIn 0.4s ease' },
+  treeHeader: {
+    textAlign: 'center',
+    marginBottom: '24px',
+  },
   treeControls: {
     display: 'flex',
     gap: '10px',
-    marginBottom: '20px',
+    marginBottom: '24px',
     flexWrap: 'wrap',
-    alignItems: 'center',
   },
   viewButton: {
     backgroundColor: 'white',
     border: '2px solid #e5e5e5',
-    padding: '10px 16px',
+    padding: '10px 18px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
-    color: '#4a5a52',
+    color: '#7a8a82',
   },
   viewButtonActive: {
     backgroundColor: '#2d4a3e',
@@ -1710,10 +2070,10 @@ const styles = {
   expandButton: {
     backgroundColor: '#f8f6f1',
     border: '2px solid #e5e5e5',
-    padding: '10px 14px',
+    padding: '10px 16px',
     borderRadius: '10px',
     fontSize: '13px',
-    fontWeight: 500,
+    fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
     color: '#6a7a72',
@@ -1721,10 +2081,10 @@ const styles = {
   collapseButton: {
     backgroundColor: '#f8f6f1',
     border: '2px solid #e5e5e5',
-    padding: '10px 14px',
+    padding: '10px 16px',
     borderRadius: '10px',
     fontSize: '13px',
-    fontWeight: 500,
+    fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
     color: '#6a7a72',
@@ -1732,24 +2092,45 @@ const styles = {
   treeContainer: {
     backgroundColor: 'white',
     borderRadius: '16px',
-    padding: '20px',
-    minHeight: '300px',
-    overflowX: 'auto',
+    padding: '24px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
   },
-  treeNode: { marginBottom: '6px' },
-  treeNodeContent: { display: 'flex', alignItems: 'center', gap: '6px' },
-  treeToggle: { fontSize: '11px', color: '#9aa99f', width: '14px', cursor: 'pointer' },
+  treeNode: {
+    marginBottom: '8px',
+  },
+  treeNodeContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    cursor: 'pointer',
+  },
+  treeToggle: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    width: '16px',
+  },
   treeNodeCard: {
     display: 'flex',
     alignItems: 'center',
-    gap: '10px',
-    padding: '8px 14px',
+    gap: '12px',
     backgroundColor: '#f8f6f1',
-    borderRadius: '10px',
+    borderRadius: '12px',
+    padding: '10px 14px',
     cursor: 'pointer',
+    transition: 'all 0.2s',
   },
-  treePhoto: { width: '36px', height: '36px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0 },
-  treePhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  treePhoto: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    flexShrink: 0,
+  },
+  treePhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   treePhotoPlaceholder: {
     width: '100%',
     height: '100%',
@@ -1761,32 +2142,41 @@ const styles = {
     fontWeight: 600,
     fontSize: '12px',
   },
-  treeInfo: { display: 'flex', flexDirection: 'column', minWidth: 0 },
-  treeName: { 
-    fontSize: '14px', 
-    fontWeight: 600, 
-    color: '#2d4a3e',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+  treeInfo: {
+    display: 'flex',
+    flexDirection: 'column',
   },
-  treeNickname: { fontSize: '11px', color: '#c9a959', fontStyle: 'italic' },
+  treeName: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#2d4a3e',
+  },
+  treeNickname: {
+    fontSize: '11px',
+    color: '#c9a959',
+    fontStyle: 'italic',
+  },
   treeChildren: {
-    marginTop: '6px',
-    paddingLeft: '20px',
+    marginLeft: '24px',
+    marginTop: '8px',
     borderLeft: '2px solid #e5e5e5',
-    marginLeft: '6px',
+    paddingLeft: '16px',
   },
   
-  listContainer: { backgroundColor: 'white', borderRadius: '16px', padding: '12px' },
+  listContainer: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '10px',
+  },
   listItem: {
+    backgroundColor: 'white',
+    borderRadius: '12px',
+    padding: '14px',
     display: 'flex',
     alignItems: 'center',
     gap: '14px',
-    padding: '14px',
-    borderRadius: '10px',
     cursor: 'pointer',
-    borderBottom: '1px solid #f0f0f0',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
   },
   listPhoto: {
     width: '44px',
@@ -1795,7 +2185,11 @@ const styles = {
     overflow: 'hidden',
     flexShrink: 0,
   },
-  listPhotoImg: { width: '100%', height: '100%', objectFit: 'cover' },
+  listPhotoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
   listPhotoPlaceholder: {
     width: '100%',
     height: '100%',
@@ -1807,23 +2201,17 @@ const styles = {
     fontWeight: 600,
     fontSize: '14px',
   },
-  listInfo: { flex: 1, minWidth: 0 },
-  listName: { 
-    fontSize: '15px', 
-    fontWeight: 600, 
-    color: '#2d4a3e', 
-    marginBottom: '2px',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-  },
-  listParents: { 
-    fontSize: '12px', 
-    color: '#7a8a82', 
+  listInfo: { flex: 1 },
+  listName: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#2d4a3e',
     margin: 0,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
+  },
+  listParents: {
+    fontSize: '13px',
+    color: '#7a8a82',
+    margin: '2px 0 0 0',
   },
   
   adminLogin: {
@@ -1834,59 +2222,77 @@ const styles = {
   },
   loginCard: {
     backgroundColor: 'white',
-    borderRadius: '20px',
-    padding: '40px',
-    maxWidth: '360px',
+    borderRadius: '24px',
+    padding: '48px 40px',
+    maxWidth: '400px',
     width: '100%',
     textAlign: 'center',
-    boxShadow: '0 4px 20px rgba(0,0,0,0.05)',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
   },
-  loginIcon: { fontSize: '42px', marginBottom: '14px' },
+  loginIcon: {
+    fontSize: '48px',
+    marginBottom: '16px',
+    display: 'block',
+  },
   loginTitle: {
+    fontSize: '28px',
     fontWeight: 700,
-    fontSize: '24px',
     color: '#2d4a3e',
-    marginBottom: '6px',
+    marginBottom: '8px',
   },
-  loginSubtitle: { fontSize: '14px', color: '#7a8a82', marginBottom: '20px' },
-  loginForm: { display: 'flex', flexDirection: 'column', gap: '14px' },
-  loginInput: {
-    padding: '12px 14px',
-    border: '2px solid #e5e5e5',
-    borderRadius: '10px',
+  loginSubtitle: {
     fontSize: '15px',
+    color: '#7a8a82',
+    marginBottom: '24px',
+  },
+  loginForm: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+  },
+  loginInput: {
+    padding: '14px 16px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '12px',
+    fontSize: '16px',
     fontFamily: 'inherit',
     textAlign: 'center',
     outline: 'none',
   },
-  loginError: { fontSize: '13px', color: '#d9534f' },
+  loginError: {
+    fontSize: '13px',
+    color: '#d9534f',
+  },
   loginButton: {
     backgroundColor: '#2d4a3e',
     color: 'white',
     border: 'none',
-    padding: '12px 20px',
-    borderRadius: '10px',
-    fontSize: '15px',
+    padding: '14px',
+    borderRadius: '12px',
+    fontSize: '16px',
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily: 'inherit',
   },
-  loginHint: { fontSize: '11px', color: '#9aa99f', marginTop: '14px' },
+  loginHint: {
+    fontSize: '12px',
+    color: '#9aa99f',
+    marginTop: '16px',
+  },
   
-  adminPage: { animation: 'fadeIn 0.5s ease' },
+  adminPage: { animation: 'fadeIn 0.4s ease' },
   adminHeader: {
     display: 'flex',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '20px',
-    flexWrap: 'wrap',
-    gap: '14px',
+    alignItems: 'center',
+    marginBottom: '24px',
+    gap: '16px',
   },
   logoutButton: {
     backgroundColor: '#f8f6f1',
     color: '#6a7a72',
     border: '2px solid #e5e5e5',
-    padding: '10px 18px',
+    padding: '10px 20px',
     borderRadius: '10px',
     fontSize: '14px',
     fontWeight: 600,
@@ -2067,6 +2473,18 @@ const styles = {
     outline: 'none',
     width: '100%',
     boxSizing: 'border-box',
+  },
+  editSelect: {
+    padding: '10px 12px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '14px',
+    fontFamily: 'inherit',
+    outline: 'none',
+    width: '100%',
+    boxSizing: 'border-box',
+    backgroundColor: 'white',
+    cursor: 'pointer',
   },
   editTextarea: {
     padding: '10px 12px',
