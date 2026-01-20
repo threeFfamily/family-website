@@ -1005,7 +1005,7 @@ function MemberModal({ member, onClose }) {
 }
 
 // ============================================
-// FAMILY TREE PAGE - Simplified Visual Tree
+// FAMILY TREE PAGE - Hierarchical Tree Layout
 // ============================================
 function FamilyTreePage({ members, onEditMember, isAdmin }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
@@ -1019,26 +1019,25 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       people[member.fullName] = {
         ...member,
         children: [],
-        parents: [],
-        spouse: null,
-        generation: 0
+        spouse: null
       };
     });
 
     // Second pass: establish relationships
     members.forEach(member => {
+      // Track children
       if (member.fatherName && people[member.fatherName]) {
         if (!people[member.fatherName].children.includes(member.fullName)) {
           people[member.fatherName].children.push(member.fullName);
         }
-        people[member.fullName].parents.push(member.fatherName);
       }
       if (member.motherName && people[member.motherName]) {
         if (!people[member.motherName].children.includes(member.fullName)) {
           people[member.motherName].children.push(member.fullName);
         }
-        people[member.fullName].parents.push(member.motherName);
       }
+      
+      // Spouse relationships
       if (member.spouseName && people[member.spouseName]) {
         people[member.fullName].spouse = member.spouseName;
         people[member.spouseName].spouse = member.fullName;
@@ -1054,86 +1053,113 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       }
     });
 
-    // Calculate generations
-    const calculateGeneration = (personName, gen, visited = new Set()) => {
-      if (visited.has(personName) || !people[personName]) return;
-      visited.add(personName);
-      people[personName].generation = Math.max(people[personName].generation, gen);
-      if (people[personName].spouse && people[people[personName].spouse]) {
-        people[people[personName].spouse].generation = people[personName].generation;
-      }
-      people[personName].children.forEach(child => calculateGeneration(child, gen + 1, visited));
-    };
-
-    // Find roots and calculate
-    const roots = Object.values(people).filter(p => 
-      p.parents.length === 0 || p.parents.every(parent => !people[parent])
-    );
-    const visited = new Set();
-    roots.forEach(root => calculateGeneration(root.fullName, 0, visited));
-
-    // Group by generation, avoiding spouse duplicates
-    const generations = {};
-    const processedSpouses = new Set();
+    // Find root people (no parents in system OR parents not in system)
+    const roots = [];
+    const processedAsSpouse = new Set();
     
     Object.values(people).forEach(person => {
-      if (processedSpouses.has(person.fullName)) return;
+      const hasParentInSystem = (person.fatherName && people[person.fatherName]) || 
+                                 (person.motherName && people[person.motherName]);
       
-      const gen = person.generation;
-      if (!generations[gen]) generations[gen] = [];
-      
-      if (person.spouse && people[person.spouse]) {
-        processedSpouses.add(person.spouse);
-        generations[gen].push({
-          type: 'couple',
-          person1: person,
-          person2: people[person.spouse]
-        });
-      } else {
-        generations[gen].push({
-          type: 'single',
-          person: person
-        });
+      if (!hasParentInSystem && !processedAsSpouse.has(person.fullName)) {
+        roots.push(person);
+        if (person.spouse && people[person.spouse]) {
+          processedAsSpouse.add(person.spouse);
+        }
       }
     });
 
-    const sortedGens = Object.keys(generations)
-      .sort((a, b) => Number(a) - Number(b))
-      .map(g => generations[g]);
-
-    return { people, generations: sortedGens };
+    return { people, roots };
   }, [members]);
 
-  // Get generation label
-  const getGenLabel = (index, total) => {
-    if (total === 1) return 'Family Members';
-    if (index === 0) return 'Generation 1';
-    return `Generation ${index + 1}`;
-  };
-
-  // Render person card
-  const PersonCard = ({ person }) => {
-    const hasChildren = familyData.people[person.fullName]?.children?.length > 0;
-    
+  // Person card component
+  const PersonCard = ({ person, onClick }) => {
     return React.createElement('div', {
+      className: 'tree-person',
       style: treeStyles.personCard,
-      className: 'person-card',
-      onClick: () => setSelectedPerson(person)
+      onClick: () => onClick(person)
     },
-      React.createElement('div', { style: treeStyles.cardPhoto, className: 'card-photo' },
+      React.createElement('div', { style: treeStyles.personPhoto },
         person.photo
-          ? React.createElement('img', { src: person.photo, alt: '', style: treeStyles.cardPhotoImg })
-          : React.createElement('div', { style: treeStyles.cardPhotoPlaceholder },
+          ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
+          : React.createElement('div', { style: treeStyles.personInitials },
               (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
             )
       ),
-      React.createElement('div', { style: treeStyles.cardName, className: 'card-name' }, 
-        person.firstName + ' ' + person.lastName
+      React.createElement('div', { style: treeStyles.personName },
+        person.firstName
       ),
-      person.nickname && React.createElement('div', { style: treeStyles.cardNickname }, 
-        '"' + person.nickname + '"'
+      React.createElement('div', { style: treeStyles.personLastName },
+        person.lastName
+      )
+    );
+  };
+
+  // Render a family unit (person + optional spouse + their children)
+  const renderFamilyUnit = (person, depth = 0, rendered = new Set()) => {
+    if (!person || rendered.has(person.fullName)) return null;
+    rendered.add(person.fullName);
+    
+    const spouse = person.spouse && familyData.people[person.spouse];
+    if (spouse) rendered.add(spouse.fullName);
+    
+    // Get unique children (combine from both spouses, avoid duplicates)
+    const childrenNames = new Set(person.children || []);
+    if (spouse) {
+      (spouse.children || []).forEach(c => childrenNames.add(c));
+    }
+    const children = Array.from(childrenNames)
+      .map(name => familyData.people[name])
+      .filter(child => child && !rendered.has(child.fullName));
+
+    return React.createElement('div', { 
+      key: person.fullName,
+      className: 'family-unit',
+      style: treeStyles.familyUnit 
+    },
+      // Parents row
+      React.createElement('div', { style: treeStyles.parentsRow, className: 'parents-row' },
+        React.createElement(PersonCard, { person, onClick: setSelectedPerson }),
+        spouse && React.createElement('div', { style: treeStyles.spouseConnector, className: 'spouse-connector' },
+          React.createElement('div', { style: treeStyles.spouseLine }),
+          React.createElement('span', { style: treeStyles.heartIcon }, '❤️')
+        ),
+        spouse && React.createElement(PersonCard, { person: spouse, onClick: setSelectedPerson })
       ),
-      hasChildren && React.createElement('div', { style: treeStyles.hasChildrenBadge }, '👶')
+      
+      // Children section
+      children.length > 0 && React.createElement('div', { style: treeStyles.childrenSection, className: 'children-section' },
+        // Vertical line down from parents
+        React.createElement('div', { style: treeStyles.verticalLine, className: 'vertical-line' }),
+        
+        // Horizontal line spanning children
+        children.length > 1 && React.createElement('div', { 
+          style: {
+            ...treeStyles.horizontalLine,
+            width: `calc(${Math.min(children.length * 140, 500)}px - 40px)`
+          },
+          className: 'horizontal-line'
+        }),
+        
+        // Children row
+        React.createElement('div', { style: treeStyles.childrenRow, className: 'children-row' },
+          children.map((child, idx) => 
+            React.createElement('div', { 
+              key: child.fullName, 
+              style: treeStyles.childBranch,
+              className: 'child-branch'
+            },
+              // Vertical line to child (only if multiple children)
+              children.length > 1 && React.createElement('div', { 
+                style: treeStyles.childVerticalLine,
+                className: 'child-vertical-line'
+              }),
+              // Recursively render child's family
+              renderFamilyUnit(child, depth + 1, rendered)
+            )
+          )
+        )
+      )
     );
   };
 
@@ -1142,6 +1168,8 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     if (!selectedPerson) return null;
     const p = selectedPerson;
     const data = familyData.people[p.fullName];
+    
+    // Find siblings
     const siblings = members.filter(m => 
       m.fullName !== p.fullName &&
       ((p.fatherName && m.fatherName === p.fatherName) ||
@@ -1149,24 +1177,24 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     );
 
     return React.createElement('div', { 
-      style: treeStyles.modalOverlay, 
+      style: treeStyles.modalOverlay,
       className: 'modal-overlay',
       onClick: () => setSelectedPerson(null) 
     },
       React.createElement('div', { 
-        style: treeStyles.modal, 
+        style: treeStyles.modal,
         className: 'tree-modal',
         onClick: e => e.stopPropagation() 
       },
         React.createElement('button', { 
-          style: treeStyles.closeBtn, 
+          style: treeStyles.closeBtn,
           onClick: () => setSelectedPerson(null) 
         }, '✕'),
         
-        React.createElement('div', { style: treeStyles.modalPhoto, className: 'modal-photo' },
+        React.createElement('div', { style: treeStyles.modalPhotoLarge },
           p.photo
             ? React.createElement('img', { src: p.photo, style: treeStyles.modalPhotoImg })
-            : React.createElement('div', { style: treeStyles.modalPhotoPlaceholder },
+            : React.createElement('div', { style: treeStyles.modalInitials },
                 (p.firstName?.[0] || '') + (p.lastName?.[0] || '')
               )
         ),
@@ -1175,12 +1203,17 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
         p.nickname && React.createElement('p', { style: treeStyles.modalNickname }, '"' + p.nickname + '"'),
         p.relation && React.createElement('span', { style: treeStyles.modalBadge }, p.relation),
         
-        React.createElement('div', { style: treeStyles.modalInfo },
+        React.createElement('div', { style: treeStyles.modalRelations },
           p.fatherName && React.createElement('p', null, '👨 Father: ', React.createElement('strong', null, p.fatherName)),
           p.motherName && React.createElement('p', null, '👩 Mother: ', React.createElement('strong', null, p.motherName)),
           data?.spouse && React.createElement('p', null, '❤️ Spouse: ', React.createElement('strong', null, data.spouse)),
           siblings.length > 0 && React.createElement('p', null, '👫 Siblings: ', React.createElement('strong', null, siblings.map(s => s.firstName).join(', '))),
-          data?.children?.length > 0 && React.createElement('p', null, '👶 Children: ', React.createElement('strong', null, data.children.map(c => familyData.people[c]?.firstName || c).join(', '))),
+          data?.children?.length > 0 && React.createElement('p', null, '👶 Children: ', React.createElement('strong', null, 
+            data.children.map(c => familyData.people[c]?.firstName || c).join(', ')
+          ))
+        ),
+        
+        (p.location || p.email || p.phone) && React.createElement('div', { style: treeStyles.modalContact },
           p.location && React.createElement('p', null, '📍 ', p.location),
           p.email && React.createElement('p', null, '✉️ ', p.email),
           p.phone && React.createElement('p', null, '📱 ', p.phone)
@@ -1189,21 +1222,13 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
         p.bio && React.createElement('div', { style: treeStyles.modalBio },
           React.createElement('strong', null, 'About'),
           React.createElement('p', null, p.bio)
-        ),
-        
-        isAdmin && React.createElement('button', {
-          style: treeStyles.editBtn,
-          onClick: () => {
-            // Close modal and open edit (would need to connect to admin edit)
-            setSelectedPerson(null);
-            alert('To edit, go to Admin panel');
-          }
-        }, '✎ Edit in Admin')
+        )
       )
     );
   };
 
   return React.createElement('div', { style: treeStyles.page, className: 'tree-page' },
+    // Header
     React.createElement('div', { style: treeStyles.header },
       React.createElement('h1', { style: treeStyles.title }, '🌳 Family Tree'),
       React.createElement('p', { style: treeStyles.subtitle }, 
@@ -1211,46 +1236,49 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       )
     ),
 
+    // Tree
     members.length === 0
       ? React.createElement('div', { style: treeStyles.empty },
           React.createElement('p', null, '🌱 No family members yet'),
-          React.createElement('p', null, 'Add members to build the tree!')
+          React.createElement('p', { style: { fontSize: '14px' } }, 'Add members to build the tree!')
         )
-      : React.createElement('div', { style: treeStyles.treeContainer, className: 'tree-container' },
-          familyData.generations.map((gen, genIndex) =>
-            React.createElement('div', { key: genIndex, style: treeStyles.generation, className: 'generation' },
-              React.createElement('div', { style: treeStyles.genLabel, className: 'gen-label' }, 
-                getGenLabel(genIndex, familyData.generations.length)
-              ),
-              genIndex > 0 && React.createElement('div', { style: treeStyles.connector }),
-              React.createElement('div', { style: treeStyles.genMembers, className: 'gen-members' },
-                gen.map((unit, idx) => 
-                  unit.type === 'couple'
-                    ? React.createElement('div', { key: idx, style: treeStyles.couple, className: 'couple' },
-                        React.createElement(PersonCard, { person: unit.person1 }),
-                        React.createElement('span', { style: treeStyles.heart }, '❤️'),
-                        React.createElement(PersonCard, { person: unit.person2 })
+      : React.createElement('div', { style: treeStyles.treeWrapper, className: 'tree-wrapper' },
+          React.createElement('div', { style: treeStyles.treeScroll, className: 'tree-scroll' },
+            React.createElement('div', { style: treeStyles.tree, className: 'tree' },
+              familyData.roots.length === 0
+                ? React.createElement('div', { style: treeStyles.noRoots },
+                    React.createElement('p', null, 'Add parent information to connect the tree'),
+                    React.createElement('div', { style: treeStyles.unconnectedList },
+                      members.map(m => 
+                        React.createElement('div', { 
+                          key: m.id,
+                          style: treeStyles.unconnectedCard,
+                          onClick: () => setSelectedPerson(m)
+                        },
+                          React.createElement('span', null, m.firstName + ' ' + m.lastName)
+                        )
                       )
-                    : React.createElement(PersonCard, { key: idx, person: unit.person })
-                )
-              )
+                    )
+                  )
+                : familyData.roots.map(root => renderFamilyUnit(root, 0, new Set()))
             )
           )
         ),
 
+    // Modal
     renderModal()
   );
 }
 
-// Simple tree styles
+// Tree styles
 const treeStyles = {
   page: {
     padding: '16px',
-    maxWidth: '100%',
+    minHeight: '100vh',
   },
   header: {
     textAlign: 'center',
-    marginBottom: '20px',
+    marginBottom: '24px',
   },
   title: {
     fontSize: '24px',
@@ -1265,111 +1293,159 @@ const treeStyles = {
   },
   empty: {
     textAlign: 'center',
-    padding: '40px 20px',
+    padding: '60px 20px',
     backgroundColor: 'white',
-    borderRadius: '12px',
+    borderRadius: '16px',
     color: '#7a8a82',
+    fontSize: '18px',
   },
-  treeContainer: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '0',
+  treeWrapper: {
+    backgroundColor: 'white',
+    borderRadius: '16px',
+    padding: '24px',
+    boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
   },
-  generation: {
+  treeScroll: {
+    overflowX: 'auto',
+    overflowY: 'visible',
+    paddingBottom: '20px',
+  },
+  tree: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    marginBottom: '8px',
+    minWidth: 'fit-content',
+    padding: '20px 0',
   },
-  genLabel: {
-    fontSize: '13px',
-    fontWeight: 600,
+  noRoots: {
+    textAlign: 'center',
     color: '#7a8a82',
-    backgroundColor: '#f0f7f4',
-    padding: '6px 16px',
-    borderRadius: '16px',
-    marginBottom: '12px',
   },
-  connector: {
-    width: '2px',
-    height: '20px',
-    backgroundColor: '#c9a959',
-    marginBottom: '8px',
-  },
-  genMembers: {
+  unconnectedList: {
     display: 'flex',
     flexWrap: 'wrap',
     justifyContent: 'center',
-    gap: '16px',
-    padding: '0 8px',
+    gap: '12px',
+    marginTop: '20px',
   },
-  couple: {
+  unconnectedCard: {
+    padding: '12px 20px',
+    backgroundColor: '#f0f7f4',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    fontSize: '14px',
+    color: '#2d4a3e',
+  },
+  // Family unit
+  familyUnit: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  parentsRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    backgroundColor: '#fff8e1',
-    padding: '8px',
-    borderRadius: '16px',
+    justifyContent: 'center',
   },
-  heart: {
-    fontSize: '16px',
+  spouseConnector: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    margin: '0 4px',
   },
+  spouseLine: {
+    width: '30px',
+    height: '3px',
+    backgroundColor: '#c9a959',
+    borderRadius: '2px',
+  },
+  heartIcon: {
+    fontSize: '12px',
+    marginTop: '-8px',
+  },
+  // Person card
   personCard: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '12px',
-    backgroundColor: 'white',
+    padding: '10px',
+    backgroundColor: '#fafafa',
     borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+    border: '2px solid #e8e8e8',
     cursor: 'pointer',
+    transition: 'all 0.2s',
     minWidth: '80px',
     maxWidth: '100px',
-    position: 'relative',
   },
-  cardPhoto: {
+  personPhoto: {
     width: '50px',
     height: '50px',
     borderRadius: '50%',
     overflow: 'hidden',
-    marginBottom: '8px',
+    marginBottom: '6px',
     border: '2px solid #c9a959',
+    backgroundColor: '#2d4a3e',
   },
-  cardPhotoImg: {
+  personPhotoImg: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
   },
-  cardPhotoPlaceholder: {
+  personInitials: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#2d4a3e',
-    color: 'white',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '16px',
+    color: 'white',
     fontWeight: 600,
+    fontSize: '16px',
   },
-  cardName: {
+  personName: {
     fontSize: '12px',
     fontWeight: 600,
     color: '#2d4a3e',
     textAlign: 'center',
     lineHeight: 1.2,
   },
-  cardNickname: {
+  personLastName: {
     fontSize: '10px',
-    color: '#c9a959',
-    fontStyle: 'italic',
+    color: '#7a8a82',
+    textAlign: 'center',
   },
-  hasChildrenBadge: {
-    position: 'absolute',
-    top: '4px',
-    right: '4px',
-    fontSize: '12px',
+  // Children section
+  childrenSection: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
   },
-  // Modal styles
+  verticalLine: {
+    width: '3px',
+    height: '25px',
+    backgroundColor: '#c9a959',
+  },
+  horizontalLine: {
+    height: '3px',
+    backgroundColor: '#c9a959',
+    minWidth: '50px',
+  },
+  childrenRow: {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'flex-start',
+    gap: '20px',
+  },
+  childBranch: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  childVerticalLine: {
+    width: '3px',
+    height: '20px',
+    backgroundColor: '#c9a959',
+  },
+  // Modal
   modalOverlay: {
     position: 'fixed',
     top: 0,
@@ -1385,94 +1461,95 @@ const treeStyles = {
   },
   modal: {
     backgroundColor: 'white',
-    borderRadius: '16px',
-    padding: '24px',
+    borderRadius: '20px',
+    padding: '28px',
     maxWidth: '400px',
     width: '100%',
-    maxHeight: '80vh',
+    maxHeight: '85vh',
     overflow: 'auto',
     position: 'relative',
   },
   closeBtn: {
     position: 'absolute',
-    top: '12px',
-    right: '12px',
+    top: '14px',
+    right: '14px',
     background: 'none',
     border: 'none',
-    fontSize: '20px',
+    fontSize: '22px',
     cursor: 'pointer',
-    color: '#999',
+    color: '#aaa',
+    padding: '4px',
   },
-  modalPhoto: {
-    width: '80px',
-    height: '80px',
+  modalPhotoLarge: {
+    width: '90px',
+    height: '90px',
     borderRadius: '50%',
     overflow: 'hidden',
-    margin: '0 auto 12px',
-    border: '3px solid #c9a959',
+    margin: '0 auto 16px',
+    border: '4px solid #c9a959',
+    backgroundColor: '#2d4a3e',
   },
   modalPhotoImg: {
     width: '100%',
     height: '100%',
     objectFit: 'cover',
   },
-  modalPhotoPlaceholder: {
+  modalInitials: {
     width: '100%',
     height: '100%',
-    backgroundColor: '#2d4a3e',
-    color: 'white',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '24px',
+    color: 'white',
     fontWeight: 600,
+    fontSize: '28px',
   },
   modalName: {
-    fontSize: '20px',
+    fontSize: '22px',
     fontWeight: 700,
     color: '#2d4a3e',
     textAlign: 'center',
     margin: '0 0 4px 0',
   },
   modalNickname: {
-    fontSize: '14px',
+    fontSize: '15px',
     color: '#c9a959',
     textAlign: 'center',
-    margin: '0 0 8px 0',
+    margin: '0 0 12px 0',
+    fontStyle: 'italic',
   },
   modalBadge: {
     display: 'block',
     fontSize: '12px',
     color: '#7a8a82',
     backgroundColor: '#f0f7f4',
-    padding: '4px 12px',
-    borderRadius: '12px',
+    padding: '5px 14px',
+    borderRadius: '14px',
     textAlign: 'center',
     margin: '0 auto 16px',
     width: 'fit-content',
   },
-  modalInfo: {
+  modalRelations: {
     fontSize: '14px',
     color: '#4a5a52',
+    lineHeight: 2,
+    padding: '12px 0',
+    borderTop: '1px solid #eee',
+  },
+  modalContact: {
+    fontSize: '13px',
+    color: '#6a7a72',
     lineHeight: 1.8,
+    padding: '12px 0',
+    borderTop: '1px solid #eee',
   },
   modalBio: {
-    marginTop: '16px',
-    padding: '12px',
+    marginTop: '12px',
+    padding: '14px',
     backgroundColor: '#f8f6f1',
-    borderRadius: '8px',
+    borderRadius: '10px',
     fontSize: '13px',
-  },
-  editBtn: {
-    width: '100%',
-    marginTop: '16px',
-    padding: '10px',
-    backgroundColor: '#2d4a3e',
-    color: 'white',
-    border: 'none',
-    borderRadius: '8px',
-    fontSize: '14px',
-    cursor: 'pointer',
+    lineHeight: 1.6,
   },
 };
 

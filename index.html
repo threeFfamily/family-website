@@ -431,92 +431,99 @@
         }
       }
       
-      /* Mobile Tree */
+      /* Mobile Tree - Hierarchical */
       @media (max-width: 768px) {
         .tree-page {
           padding: 12px !important;
-          display: block !important;
-          visibility: visible !important;
         }
         
-        .tree-container {
-          display: flex !important;
-          flex-direction: column !important;
-          visibility: visible !important;
-          width: 100% !important;
-        }
-        
-        .generation {
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
-          margin-bottom: 20px !important;
-          width: 100% !important;
-        }
-        
-        .gen-label {
-          font-size: 12px !important;
-          padding: 6px 14px !important;
-          margin-bottom: 12px !important;
-          background-color: #f0f7f4 !important;
-          border-radius: 16px !important;
-        }
-        
-        .gen-members {
-          display: flex !important;
-          flex-wrap: wrap !important;
-          justify-content: center !important;
-          gap: 10px !important;
-          width: 100% !important;
-        }
-        
-        .couple {
-          display: flex !important;
-          flex-direction: row !important;
-          align-items: center !important;
-          padding: 8px !important;
-          gap: 6px !important;
-          background-color: #fff8e1 !important;
+        .tree-wrapper {
+          padding: 16px 8px !important;
           border-radius: 12px !important;
         }
         
-        .person-card {
-          display: flex !important;
-          flex-direction: column !important;
-          align-items: center !important;
-          min-width: 70px !important;
-          max-width: 80px !important;
-          padding: 8px !important;
-          background: white !important;
-          border-radius: 10px !important;
-          box-shadow: 0 2px 6px rgba(0,0,0,0.1) !important;
+        .tree-scroll {
+          overflow-x: auto !important;
+          -webkit-overflow-scrolling: touch !important;
         }
         
-        .card-photo {
+        .tree {
+          min-width: max-content !important;
+          padding: 10px !important;
+        }
+        
+        .family-unit {
+          align-items: center !important;
+        }
+        
+        .parents-row {
+          flex-wrap: nowrap !important;
+        }
+        
+        .tree-person {
+          min-width: 65px !important;
+          max-width: 75px !important;
+          padding: 8px !important;
+        }
+        
+        .tree-person > div:first-child {
           width: 40px !important;
           height: 40px !important;
-          border-radius: 50% !important;
-          overflow: hidden !important;
-          margin-bottom: 6px !important;
         }
         
-        .card-name {
+        .tree-person > div:nth-child(2) {
           font-size: 10px !important;
-          text-align: center !important;
-          line-height: 1.2 !important;
         }
         
-        .tree-modal,
-        .modal-overlay > div {
+        .tree-person > div:nth-child(3) {
+          font-size: 9px !important;
+        }
+        
+        .spouse-connector {
+          margin: 0 2px !important;
+        }
+        
+        .spouse-connector > div {
+          width: 20px !important;
+        }
+        
+        .spouse-connector > span {
+          font-size: 10px !important;
+        }
+        
+        .children-section {
+          align-items: center !important;
+        }
+        
+        .vertical-line {
+          height: 18px !important;
+        }
+        
+        .horizontal-line {
+          max-width: 300px !important;
+        }
+        
+        .children-row {
+          gap: 10px !important;
+        }
+        
+        .child-branch {
+          align-items: center !important;
+        }
+        
+        .child-vertical-line {
+          height: 15px !important;
+        }
+        
+        .tree-modal {
           padding: 20px !important;
-          max-height: 85vh !important;
           margin: 10px !important;
-          border-radius: 16px !important;
+          max-height: 85vh !important;
         }
         
-        .modal-photo {
-          width: 60px !important;
-          height: 60px !important;
+        .modal-overlay > div > div:first-child {
+          width: 70px !important;
+          height: 70px !important;
         }
       }
       
