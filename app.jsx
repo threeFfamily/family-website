@@ -32,6 +32,16 @@ const RELATION_OPTIONS = [
 // Helper to generate unique IDs
 const generateId = () => `member_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Helper to generate unique edit codes (6 characters, easy to type)
+const generateEditCode = () => {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing chars like 0,O,1,I
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 // ============================================
 // MAIN APP COMPONENT
 // ============================================
@@ -104,14 +114,32 @@ function FamilyWebsite() {
 
   const approveMember = async (memberId) => {
     try {
+      const editCode = generateEditCode();
       await window.db.collection('members').doc(memberId).update({
         status: 'approved',
-        approvedAt: new Date().toISOString()
+        approvedAt: new Date().toISOString(),
+        editCode: editCode // Unique code for self-editing
       });
-      showNotification('Member approved successfully!');
+      showNotification(`Member approved! Their edit code is: ${editCode}`);
     } catch (error) {
       console.error('Error approving member:', error);
       showNotification('Error approving. Please try again.', 'error');
+    }
+  };
+
+  // Update member's own info (for self-editing)
+  const updateOwnInfo = async (memberId, data) => {
+    try {
+      await window.db.collection('members').doc(memberId).update({
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      showNotification('Your information has been updated!');
+      return true;
+    } catch (error) {
+      console.error('Error updating info:', error);
+      showNotification('Error updating. Please try again.', 'error');
+      return false;
     }
   };
 
@@ -190,6 +218,11 @@ function FamilyWebsite() {
         onReject: rejectMember,
         onDelete: deleteMember,
         onEdit: editMember
+      }),
+      
+      currentPage === 'self-edit' && React.createElement(SelfEditPage, {
+        members: members,
+        onSave: editMember
       })
     ),
     
@@ -311,6 +344,12 @@ function HomePage({ setCurrentPage, memberCount }) {
           title: 'Join the Tree',
           description: 'Add your information and photo.',
           action: () => setCurrentPage('submit')
+        }),
+        React.createElement(FeatureCard, {
+          icon: '✏️',
+          title: 'Edit My Entry',
+          description: 'Update your own information.',
+          action: () => setCurrentPage('self-edit')
         })
       )
     )
@@ -345,6 +384,7 @@ function SubmitPage({ onSubmit, existingMembers = [] }) {
     location: '',
     bio: '',
     photo: null,
+    editCode: '', // 4-digit code for self-editing
     // UI helper flags for custom inputs
     showCustomFather: false,
     showCustomMother: false,
@@ -404,6 +444,9 @@ function SubmitPage({ onSubmit, existingMembers = [] }) {
     const newErrors = {};
     if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
     if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+    if (!formData.editCode || formData.editCode.length !== 4) {
+      newErrors.editCode = 'Please enter a 4-digit code';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -786,6 +829,54 @@ function SubmitPage({ onSubmit, existingMembers = [] }) {
           )
         ),
 
+        // ========== SECTION 5: EDIT CODE ==========
+        React.createElement('div', { style: styles.formSection },
+          React.createElement('div', { style: styles.sectionHeader },
+            React.createElement('span', { style: styles.sectionIcon }, '🔑'),
+            React.createElement('h3', { style: styles.sectionTitle }, 'Your Edit Code'),
+            React.createElement('span', { style: styles.requiredNote }, 'Required')
+          ),
+          
+          React.createElement('div', { style: styles.infoBox },
+            React.createElement('p', { style: styles.infoText }, 
+              '💡 Create a 4-digit code you\'ll remember. You\'ll need this to edit your entry later. If you forget it, contact an admin.'
+            )
+          ),
+          
+          React.createElement('div', { style: styles.formField, className: 'form-field' },
+            React.createElement('label', { style: styles.label, className: 'form-label' }, 
+              'Create 4-Digit Code ',
+              React.createElement('span', { style: { color: '#e74c3c' } }, '*')
+            ),
+            React.createElement('input', {
+              type: 'text',
+              inputMode: 'numeric',
+              pattern: '[0-9]*',
+              maxLength: 4,
+              value: formData.editCode,
+              onChange: (e) => {
+                const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                handleChange('editCode', val);
+              },
+              style: {
+                ...styles.input,
+                textAlign: 'center',
+                fontSize: '24px',
+                letterSpacing: '10px',
+                maxWidth: '180px',
+                fontFamily: 'monospace',
+                ...(errors.editCode ? styles.inputError : {})
+              },
+              placeholder: '••••',
+              className: 'form-input'
+            }),
+            errors.editCode && React.createElement('span', { style: styles.errorText }, errors.editCode),
+            React.createElement('p', { style: { fontSize: '12px', color: '#7a8a82', marginTop: '8px' } },
+              'Example: your birth year, anniversary, or any memorable 4 digits'
+            )
+          )
+        ),
+
         // Submit Button
         React.createElement('button', {
           type: 'submit',
@@ -812,6 +903,524 @@ function FormField({ label, value, onChange, error, placeholder, type = 'text' }
     error && React.createElement('span', { style: styles.errorText }, error)
   );
 }
+
+// ============================================
+// SELF-EDIT PAGE
+// ============================================
+function SelfEditPage({ members, onSave }) {
+  const [step, setStep] = useState('verify'); // 'verify' or 'edit'
+  const [selectedName, setSelectedName] = useState('');
+  const [editCode, setEditCode] = useState('');
+  const [verifyError, setVerifyError] = useState('');
+  const [memberToEdit, setMemberToEdit] = useState(null);
+  const [formData, setFormData] = useState({});
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+
+  // Sort members for dropdown
+  const sortedMembers = useMemo(() => {
+    return [...members].sort((a, b) => 
+      (a.fullName || '').localeCompare(b.fullName || '')
+    );
+  }, [members]);
+
+  const handleVerify = () => {
+    setVerifyError('');
+    
+    if (!selectedName) {
+      setVerifyError('Please select your name');
+      return;
+    }
+    
+    if (!editCode || editCode.length !== 4) {
+      setVerifyError('Please enter your 4-digit code');
+      return;
+    }
+    
+    // Find member and verify code
+    const member = members.find(m => m.fullName === selectedName);
+    
+    if (!member) {
+      setVerifyError('Member not found');
+      return;
+    }
+    
+    if (!member.editCode) {
+      setVerifyError('No edit code set for this account. Please contact an admin.');
+      return;
+    }
+    
+    if (member.editCode !== editCode) {
+      setVerifyError('Incorrect code. Please try again or contact an admin.');
+      return;
+    }
+    
+    // Success - load member data for editing
+    setMemberToEdit(member);
+    setFormData({
+      salutation: member.salutation || '',
+      firstName: member.firstName || '',
+      lastName: member.lastName || '',
+      nickname: member.nickname || '',
+      fatherName: member.fatherName || '',
+      motherName: member.motherName || '',
+      spouseName: member.spouseName || '',
+      relation: member.relation || '',
+      email: member.email || '',
+      phone: member.phone || '',
+      location: member.location || '',
+      bio: member.bio || '',
+      photo: member.photo || null,
+      editCode: member.editCode || '',
+    });
+    setPhotoPreview(member.photo || null);
+    setStep('edit');
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handlePhotoChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Photo must be under 2MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setPhotoPreview(reader.result);
+        handleChange('photo', reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    
+    const finalSalutation = formData.salutation === 'custom' 
+      ? formData.customSalutation 
+      : formData.salutation;
+    
+    await onSave(memberToEdit.id, {
+      ...formData,
+      salutation: finalSalutation,
+      fullName: `${finalSalutation ? finalSalutation + ' ' : ''}${formData.firstName} ${formData.lastName}`.trim(),
+    });
+    
+    setIsSaving(false);
+    setSaveSuccess(true);
+  };
+
+  // Verification step
+  if (step === 'verify') {
+    return React.createElement('div', { style: selfEditStyles.page },
+      React.createElement('div', { style: selfEditStyles.card },
+        React.createElement('div', { style: selfEditStyles.icon }, '✏️'),
+        React.createElement('h1', { style: selfEditStyles.title }, 'Edit Your Entry'),
+        React.createElement('p', { style: selfEditStyles.subtitle }, 
+          'Select your name and enter your 4-digit code'
+        ),
+        
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Your Name'),
+          React.createElement('select', {
+            value: selectedName,
+            onChange: (e) => setSelectedName(e.target.value),
+            style: selfEditStyles.select
+          },
+            React.createElement('option', { value: '' }, '— Select your name —'),
+            sortedMembers.map(m => 
+              React.createElement('option', { key: m.id, value: m.fullName }, m.fullName)
+            )
+          )
+        ),
+        
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Your 4-Digit Code'),
+          React.createElement('input', {
+            type: 'text',
+            inputMode: 'numeric',
+            pattern: '[0-9]*',
+            maxLength: 4,
+            value: editCode,
+            onChange: (e) => setEditCode(e.target.value.replace(/[^0-9]/g, '').slice(0, 4)),
+            style: selfEditStyles.codeInput,
+            placeholder: '••••'
+          })
+        ),
+        
+        verifyError && React.createElement('p', { style: selfEditStyles.error }, verifyError),
+        
+        React.createElement('button', {
+          onClick: handleVerify,
+          style: selfEditStyles.button
+        }, 'Verify & Continue'),
+        
+        React.createElement('p', { style: selfEditStyles.hint },
+          '🔒 Forgot your code? Contact an admin for help.'
+        )
+      )
+    );
+  }
+
+  // Success message
+  if (saveSuccess) {
+    return React.createElement('div', { style: selfEditStyles.page },
+      React.createElement('div', { style: selfEditStyles.card },
+        React.createElement('div', { style: selfEditStyles.icon }, '✅'),
+        React.createElement('h1', { style: selfEditStyles.title }, 'Updated Successfully!'),
+        React.createElement('p', { style: selfEditStyles.subtitle }, 
+          'Your information has been saved.'
+        ),
+        React.createElement('button', {
+          onClick: () => {
+            setStep('verify');
+            setSaveSuccess(false);
+            setSelectedName('');
+            setEditCode('');
+            setMemberToEdit(null);
+          },
+          style: selfEditStyles.button
+        }, 'Done')
+      )
+    );
+  }
+
+  // Edit form
+  return React.createElement('div', { style: selfEditStyles.page },
+    React.createElement('div', { style: selfEditStyles.editCard },
+      React.createElement('div', { style: selfEditStyles.editHeader },
+        React.createElement('h1', { style: selfEditStyles.editTitle }, 'Edit Your Information'),
+        React.createElement('p', { style: selfEditStyles.editSubtitle }, 
+          'Editing: ' + memberToEdit.fullName
+        )
+      ),
+      
+      // Photo
+      React.createElement('div', { style: selfEditStyles.photoSection },
+        React.createElement('div', { 
+          style: selfEditStyles.photoPreview,
+          onClick: () => document.getElementById('self-edit-photo').click()
+        },
+          photoPreview
+            ? React.createElement('img', { src: photoPreview, style: selfEditStyles.photoImg })
+            : React.createElement('span', { style: selfEditStyles.photoPlaceholder }, '📷')
+        ),
+        React.createElement('input', {
+          id: 'self-edit-photo',
+          type: 'file',
+          accept: 'image/*',
+          onChange: handlePhotoChange,
+          style: { display: 'none' }
+        }),
+        React.createElement('p', { style: selfEditStyles.photoHint }, 'Tap to change photo')
+      ),
+
+      // Form fields
+      React.createElement('div', { style: selfEditStyles.form },
+        // Name row
+        React.createElement('div', { style: selfEditStyles.row },
+          React.createElement('div', { style: selfEditStyles.field },
+            React.createElement('label', { style: selfEditStyles.label }, 'First Name'),
+            React.createElement('input', {
+              type: 'text',
+              value: formData.firstName,
+              onChange: (e) => handleChange('firstName', e.target.value),
+              style: selfEditStyles.input
+            })
+          ),
+          React.createElement('div', { style: selfEditStyles.field },
+            React.createElement('label', { style: selfEditStyles.label }, 'Last Name'),
+            React.createElement('input', {
+              type: 'text',
+              value: formData.lastName,
+              onChange: (e) => handleChange('lastName', e.target.value),
+              style: selfEditStyles.input
+            })
+          )
+        ),
+
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Nickname'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.nickname,
+            onChange: (e) => handleChange('nickname', e.target.value),
+            style: selfEditStyles.input,
+            placeholder: 'Optional'
+          })
+        ),
+
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Email'),
+          React.createElement('input', {
+            type: 'email',
+            value: formData.email,
+            onChange: (e) => handleChange('email', e.target.value),
+            style: selfEditStyles.input
+          })
+        ),
+
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Phone'),
+          React.createElement('input', {
+            type: 'tel',
+            value: formData.phone,
+            onChange: (e) => handleChange('phone', e.target.value),
+            style: selfEditStyles.input
+          })
+        ),
+
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Location'),
+          React.createElement('input', {
+            type: 'text',
+            value: formData.location,
+            onChange: (e) => handleChange('location', e.target.value),
+            style: selfEditStyles.input
+          })
+        ),
+
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Bio'),
+          React.createElement('textarea', {
+            value: formData.bio,
+            onChange: (e) => handleChange('bio', e.target.value),
+            style: selfEditStyles.textarea,
+            rows: 3
+          })
+        ),
+
+        // Change edit code
+        React.createElement('div', { style: selfEditStyles.field },
+          React.createElement('label', { style: selfEditStyles.label }, 'Change Your Edit Code (optional)'),
+          React.createElement('input', {
+            type: 'text',
+            inputMode: 'numeric',
+            pattern: '[0-9]*',
+            maxLength: 4,
+            value: formData.editCode,
+            onChange: (e) => handleChange('editCode', e.target.value.replace(/[^0-9]/g, '').slice(0, 4)),
+            style: { ...selfEditStyles.input, maxWidth: '120px', textAlign: 'center', letterSpacing: '8px' },
+            placeholder: '••••'
+          }),
+          React.createElement('p', { style: { fontSize: '11px', color: '#999', marginTop: '4px' } },
+            'Leave unchanged to keep current code'
+          )
+        ),
+
+        // Buttons
+        React.createElement('div', { style: selfEditStyles.buttons },
+          React.createElement('button', {
+            onClick: () => setStep('verify'),
+            style: selfEditStyles.cancelBtn
+          }, 'Cancel'),
+          React.createElement('button', {
+            onClick: handleSave,
+            disabled: isSaving,
+            style: selfEditStyles.saveBtn
+          }, isSaving ? 'Saving...' : 'Save Changes')
+        )
+      )
+    )
+  );
+}
+
+// Self-edit page styles
+const selfEditStyles = {
+  page: {
+    minHeight: '80vh',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '20px',
+  },
+  card: {
+    backgroundColor: 'white',
+    borderRadius: '20px',
+    padding: '40px',
+    maxWidth: '400px',
+    width: '100%',
+    textAlign: 'center',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+  },
+  icon: {
+    fontSize: '48px',
+    marginBottom: '16px',
+  },
+  title: {
+    fontSize: '24px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '8px',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#7a8a82',
+    marginBottom: '24px',
+  },
+  field: {
+    marginBottom: '16px',
+    textAlign: 'left',
+  },
+  label: {
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#4a5a52',
+    marginBottom: '6px',
+  },
+  select: {
+    width: '100%',
+    padding: '12px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '16px',
+    backgroundColor: 'white',
+  },
+  codeInput: {
+    width: '100%',
+    padding: '16px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '28px',
+    textAlign: 'center',
+    letterSpacing: '12px',
+    fontFamily: 'monospace',
+  },
+  error: {
+    color: '#e74c3c',
+    fontSize: '13px',
+    marginBottom: '16px',
+    padding: '10px',
+    backgroundColor: '#fdf2f2',
+    borderRadius: '8px',
+  },
+  button: {
+    width: '100%',
+    padding: '14px',
+    backgroundColor: '#2d4a3e',
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '16px',
+    fontWeight: 600,
+    cursor: 'pointer',
+    marginBottom: '16px',
+  },
+  hint: {
+    fontSize: '12px',
+    color: '#9a9a9a',
+  },
+  // Edit form styles
+  editCard: {
+    backgroundColor: 'white',
+    borderRadius: '20px',
+    padding: '30px',
+    maxWidth: '500px',
+    width: '100%',
+    boxShadow: '0 4px 20px rgba(0,0,0,0.08)',
+  },
+  editHeader: {
+    textAlign: 'center',
+    marginBottom: '24px',
+  },
+  editTitle: {
+    fontSize: '22px',
+    fontWeight: 700,
+    color: '#2d4a3e',
+    marginBottom: '4px',
+  },
+  editSubtitle: {
+    fontSize: '14px',
+    color: '#c9a959',
+  },
+  photoSection: {
+    textAlign: 'center',
+    marginBottom: '24px',
+  },
+  photoPreview: {
+    width: '100px',
+    height: '100px',
+    borderRadius: '50%',
+    border: '3px solid #c9a959',
+    margin: '0 auto 8px',
+    overflow: 'hidden',
+    cursor: 'pointer',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#f0f7f4',
+  },
+  photoImg: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  photoPlaceholder: {
+    fontSize: '32px',
+  },
+  photoHint: {
+    fontSize: '12px',
+    color: '#7a8a82',
+  },
+  form: {
+    textAlign: 'left',
+  },
+  row: {
+    display: 'flex',
+    gap: '12px',
+  },
+  input: {
+    width: '100%',
+    padding: '12px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '15px',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px',
+    border: '2px solid #e5e5e5',
+    borderRadius: '10px',
+    fontSize: '15px',
+    resize: 'vertical',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  },
+  buttons: {
+    display: 'flex',
+    gap: '12px',
+    marginTop: '24px',
+  },
+  cancelBtn: {
+    flex: 1,
+    padding: '14px',
+    backgroundColor: '#f0f0f0',
+    color: '#666',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+  saveBtn: {
+    flex: 2,
+    padding: '14px',
+    backgroundColor: '#2d4a3e',
+    color: 'white',
+    border: 'none',
+    borderRadius: '10px',
+    fontSize: '15px',
+    fontWeight: 600,
+    cursor: 'pointer',
+  },
+};
 
 // ============================================
 // DIRECTORY PAGE
@@ -1009,7 +1618,9 @@ function MemberModal({ member, onClose }) {
 // ============================================
 function FamilyTreePage({ members, onEditMember, isAdmin }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
-  const [childOrder, setChildOrder] = useState({}); // Track custom order of children
+  const [childOrder, setChildOrder] = useState({});
+  const [spouseOrder, setSpouseOrder] = useState({});
+  const [unlinkedPosition, setUnlinkedPosition] = useState('bottom'); // 'top' or 'bottom'
 
   // Build family data structure
   const familyData = useMemo(() => {
@@ -1020,57 +1631,81 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       people[member.fullName] = {
         ...member,
         children: [],
-        spouse: null
+        spouses: [], // Support multiple spouses
+        isLinked: false
       };
     });
 
     // Second pass: establish relationships
     members.forEach(member => {
-      // Track children
+      // Track children - this links both parent and child
       if (member.fatherName && people[member.fatherName]) {
         if (!people[member.fatherName].children.includes(member.fullName)) {
           people[member.fatherName].children.push(member.fullName);
         }
+        people[member.fullName].isLinked = true;
+        people[member.fatherName].isLinked = true;
       }
       if (member.motherName && people[member.motherName]) {
         if (!people[member.motherName].children.includes(member.fullName)) {
           people[member.motherName].children.push(member.fullName);
         }
+        people[member.fullName].isLinked = true;
+        people[member.motherName].isLinked = true;
       }
       
       // Spouse relationships
       if (member.spouseName && people[member.spouseName]) {
-        people[member.fullName].spouse = member.spouseName;
-        people[member.spouseName].spouse = member.fullName;
+        if (!people[member.fullName].spouses.includes(member.spouseName)) {
+          people[member.fullName].spouses.push(member.spouseName);
+        }
+        if (!people[member.spouseName].spouses.includes(member.fullName)) {
+          people[member.spouseName].spouses.push(member.fullName);
+        }
+        people[member.fullName].isLinked = true;
+        people[member.spouseName].isLinked = true;
       }
     });
 
-    // Infer spouse from shared children
+    // Infer spouse from shared children (support multiple)
     members.forEach(member => {
       if (member.fatherName && member.motherName && 
           people[member.fatherName] && people[member.motherName]) {
-        people[member.fatherName].spouse = member.motherName;
-        people[member.motherName].spouse = member.fatherName;
+        if (!people[member.fatherName].spouses.includes(member.motherName)) {
+          people[member.fatherName].spouses.push(member.motherName);
+        }
+        if (!people[member.motherName].spouses.includes(member.fatherName)) {
+          people[member.motherName].spouses.push(member.fatherName);
+        }
       }
     });
 
-    // Find root people (no parents in system)
+    // Find root people (no parents in system, but has children or is linked)
     const roots = [];
     const processedAsSpouse = new Set();
+    const unlinked = [];
     
     Object.values(people).forEach(person => {
       const hasParentInSystem = (person.fatherName && people[person.fatherName]) || 
                                  (person.motherName && people[person.motherName]);
       
-      if (!hasParentInSystem && !processedAsSpouse.has(person.fullName)) {
-        roots.push(person);
-        if (person.spouse && people[person.spouse]) {
-          processedAsSpouse.add(person.spouse);
+      if (!hasParentInSystem) {
+        // Check if this person has any connections (children or is someone's spouse)
+        const hasConnections = person.children.length > 0 || person.spouses.length > 0;
+        
+        if (hasConnections && !processedAsSpouse.has(person.fullName)) {
+          roots.push(person);
+          // Mark all spouses as processed
+          person.spouses.forEach(spouseName => {
+            processedAsSpouse.add(spouseName);
+          });
+        } else if (!hasConnections && !processedAsSpouse.has(person.fullName)) {
+          unlinked.push(person);
         }
       }
     });
 
-    return { people, roots };
+    return { people, roots, unlinked };
   }, [members]);
 
   // Swap children order
@@ -1083,12 +1718,20 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     });
   };
 
+  // Swap spouse order
+  const swapSpouses = (personKey, idx1, idx2) => {
+    setSpouseOrder(prev => {
+      const currentOrder = prev[personKey] || [];
+      const newOrder = [...currentOrder];
+      [newOrder[idx1], newOrder[idx2]] = [newOrder[idx2], newOrder[idx1]];
+      return { ...prev, [personKey]: newOrder };
+    });
+  };
+
   // Get ordered children
   const getOrderedChildren = (childrenNames, parentKey) => {
     const order = childOrder[parentKey];
     if (!order || order.length === 0) return childrenNames;
-    
-    // Sort based on saved order, put unsorted ones at end
     return [...childrenNames].sort((a, b) => {
       const idxA = order.indexOf(a);
       const idxB = order.indexOf(b);
@@ -1099,65 +1742,109 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     });
   };
 
-  // Initialize child order when not set
+  // Get ordered spouses
+  const getOrderedSpouses = (spouseNames, personKey) => {
+    const order = spouseOrder[personKey];
+    if (!order || order.length === 0) return spouseNames;
+    return [...spouseNames].sort((a, b) => {
+      const idxA = order.indexOf(a);
+      const idxB = order.indexOf(b);
+      if (idxA === -1 && idxB === -1) return 0;
+      if (idxA === -1) return 1;
+      if (idxB === -1) return -1;
+      return idxA - idxB;
+    });
+  };
+
+  // Initialize orders
   const initChildOrder = (childrenNames, parentKey) => {
     if (!childOrder[parentKey] && childrenNames.length > 0) {
       setChildOrder(prev => ({ ...prev, [parentKey]: childrenNames }));
     }
   };
 
+  const initSpouseOrder = (spouseNames, personKey) => {
+    if (!spouseOrder[personKey] && spouseNames.length > 0) {
+      setSpouseOrder(prev => ({ ...prev, [personKey]: spouseNames }));
+    }
+  };
+
   // Get display name with salutation
   const getDisplayName = (person) => {
-    if (person.salutation && person.salutation !== 'Other') {
+    if (person.salutation && person.salutation !== 'None') {
       return person.salutation + ' ' + person.firstName;
     }
     return person.firstName;
   };
 
   // Person card component
-  const PersonCard = ({ person, onClick }) => {
-    return React.createElement('div', {
-      className: 'tree-person',
-      style: treeStyles.personCard,
-      onClick: () => onClick(person),
-    },
-      React.createElement('div', { style: treeStyles.personPhoto },
-        person.photo
-          ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
-          : React.createElement('div', { style: treeStyles.personInitials },
-              (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
-            )
+  const PersonCard = ({ person, onClick, showSwap, onSwapLeft, onSwapRight, isFirst, isLast }) => {
+    return React.createElement('div', { style: treeStyles.personCardWrapper },
+      // Swap buttons for admin
+      isAdmin && showSwap && React.createElement('div', { style: treeStyles.swapBtns },
+        !isFirst && React.createElement('button', {
+          style: treeStyles.swapBtn,
+          onClick: (e) => { e.stopPropagation(); onSwapLeft && onSwapLeft(); },
+          title: 'Move left'
+        }, '←'),
+        !isLast && React.createElement('button', {
+          style: treeStyles.swapBtn,
+          onClick: (e) => { e.stopPropagation(); onSwapRight && onSwapRight(); },
+          title: 'Move right'
+        }, '→')
       ),
-      React.createElement('div', { style: treeStyles.personName },
-        getDisplayName(person)
-      ),
-      React.createElement('div', { style: treeStyles.personLastName },
-        person.lastName
-      ),
-      person.nickname && React.createElement('div', { style: treeStyles.personNickname },
-        person.nickname
+      React.createElement('div', {
+        className: 'tree-person',
+        style: treeStyles.personCard,
+        onClick: () => onClick(person)
+      },
+        React.createElement('div', { style: treeStyles.personPhoto },
+          person.photo
+            ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
+            : React.createElement('div', { style: treeStyles.personInitials },
+                (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
+              )
+        ),
+        React.createElement('div', { style: treeStyles.personName },
+          getDisplayName(person)
+        ),
+        React.createElement('div', { style: treeStyles.personLastName },
+          person.lastName
+        ),
+        person.nickname && React.createElement('div', { style: treeStyles.personNickname },
+          person.nickname
+        )
       )
     );
   };
 
-  // Render a family unit (person + optional spouse + their children)
+  // Render a family unit (person + spouses + their children)
   const renderFamilyUnit = (person, depth = 0, rendered = new Set()) => {
     if (!person || rendered.has(person.fullName)) return null;
     rendered.add(person.fullName);
     
-    const spouse = person.spouse && familyData.people[person.spouse];
-    if (spouse) rendered.add(spouse.fullName);
+    // Get ordered spouses
+    const orderedSpouses = getOrderedSpouses(person.spouses || [], person.fullName)
+      .map(name => familyData.people[name])
+      .filter(s => s && !rendered.has(s.fullName));
     
-    // Get unique children
-    const childrenNames = new Set(person.children || []);
-    if (spouse) {
-      (spouse.children || []).forEach(c => childrenNames.add(c));
+    // Mark spouses as rendered
+    orderedSpouses.forEach(s => rendered.add(s.fullName));
+    
+    // Initialize spouse order
+    if (orderedSpouses.length > 0 && !spouseOrder[person.fullName]) {
+      setTimeout(() => initSpouseOrder(person.spouses, person.fullName), 0);
     }
     
-    const parentKey = spouse ? `${person.fullName}+${spouse.fullName}` : person.fullName;
+    // Get unique children from person and all spouses
+    const childrenNames = new Set(person.children || []);
+    orderedSpouses.forEach(spouse => {
+      (spouse.children || []).forEach(c => childrenNames.add(c));
+    });
+    
+    const parentKey = person.fullName;
     const orderedChildrenNames = getOrderedChildren(Array.from(childrenNames), parentKey);
     
-    // Initialize order
     if (orderedChildrenNames.length > 0 && !childOrder[parentKey]) {
       setTimeout(() => initChildOrder(orderedChildrenNames, parentKey), 0);
     }
@@ -1167,19 +1854,41 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       .filter(child => child && !rendered.has(child.fullName));
 
     const hasMultipleChildren = children.length > 1;
+    const hasMultipleSpouses = orderedSpouses.length > 1;
 
     return React.createElement('div', { 
       key: person.fullName,
       className: 'family-unit',
       style: treeStyles.familyUnit 
     },
-      // Parents row
+      // Parents row (person + spouses)
       React.createElement('div', { style: treeStyles.parentsRow, className: 'parents-row' },
-        React.createElement(PersonCard, { person, onClick: setSelectedPerson }),
-        spouse && React.createElement('div', { style: treeStyles.spouseConnector },
-          React.createElement('div', { style: treeStyles.spouseLine })
-        ),
-        spouse && React.createElement(PersonCard, { person: spouse, onClick: setSelectedPerson })
+        // Main person
+        React.createElement(PersonCard, { 
+          person, 
+          onClick: setSelectedPerson,
+          showSwap: false
+        }),
+        
+        // Spouses with connectors
+        orderedSpouses.map((spouse, idx) => 
+          React.createElement(React.Fragment, { key: spouse.fullName },
+            // Spouse connector line
+            React.createElement('div', { style: treeStyles.spouseConnector },
+              React.createElement('div', { style: treeStyles.spouseLine })
+            ),
+            // Spouse card with reorder buttons
+            React.createElement(PersonCard, {
+              person: spouse,
+              onClick: setSelectedPerson,
+              showSwap: hasMultipleSpouses,
+              isFirst: idx === 0,
+              isLast: idx === orderedSpouses.length - 1,
+              onSwapLeft: () => swapSpouses(person.fullName, idx, idx - 1),
+              onSwapRight: () => swapSpouses(person.fullName, idx, idx + 1)
+            })
+          )
+        )
       ),
       
       // Children section
@@ -1198,20 +1907,17 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
               style: treeStyles.childBranch,
               className: 'child-branch'
             },
-              // Top connector: horizontal + vertical in one piece
+              // Top connector: horizontal + vertical
               hasMultipleChildren && React.createElement('div', { 
                 style: treeStyles.connectorWrapper 
               },
-                // Left horizontal segment (not for first child)
                 React.createElement('div', { 
                   style: {
                     ...treeStyles.horizontalSegment,
                     visibility: idx === 0 ? 'hidden' : 'visible'
                   }
                 }),
-                // Vertical line down
                 React.createElement('div', { style: treeStyles.verticalConnector }),
-                // Right horizontal segment (not for last child)
                 React.createElement('div', { 
                   style: {
                     ...treeStyles.horizontalSegment,
@@ -1220,12 +1926,12 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
                 })
               ),
               
-              // Single child - just a short vertical line
+              // Single child - just vertical line
               !hasMultipleChildren && React.createElement('div', { 
                 style: { ...treeStyles.verticalConnector, height: '20px' } 
               }),
               
-              // Reorder buttons (admin only)
+              // Reorder buttons (admin only, multiple children)
               isAdmin && hasMultipleChildren && React.createElement('div', { style: treeStyles.reorderBtns },
                 idx > 0 && React.createElement('button', {
                   style: treeStyles.reorderBtn,
@@ -1241,6 +1947,46 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
               
               // Recursively render child's family
               renderFamilyUnit(child, depth + 1, rendered)
+            )
+          )
+        )
+      )
+    );
+  };
+
+  // Render unlinked people section
+  const renderUnlinkedSection = () => {
+    if (familyData.unlinked.length === 0) return null;
+    
+    return React.createElement('div', { style: treeStyles.unlinkedSection, className: 'unlinked-section' },
+      React.createElement('div', { style: treeStyles.unlinkedHeader },
+        React.createElement('span', { style: treeStyles.unlinkedTitle }, 
+          '🔗 Not Yet Connected (' + familyData.unlinked.length + ')'
+        ),
+        React.createElement('p', { style: treeStyles.unlinkedHint },
+          'These members need parent info to connect to the tree'
+        ),
+        isAdmin && React.createElement('button', {
+          style: treeStyles.positionToggle,
+          onClick: () => setUnlinkedPosition(p => p === 'bottom' ? 'top' : 'bottom')
+        }, unlinkedPosition === 'bottom' ? '↑ Move to Top' : '↓ Move to Bottom')
+      ),
+      React.createElement('div', { style: treeStyles.unlinkedGrid },
+        familyData.unlinked.map(person =>
+          React.createElement('div', {
+            key: person.fullName,
+            style: treeStyles.unlinkedCard,
+            onClick: () => setSelectedPerson(person)
+          },
+            React.createElement('div', { style: treeStyles.unlinkedPhoto },
+              person.photo
+                ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
+                : React.createElement('div', { style: treeStyles.personInitials },
+                    (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
+                  )
+            ),
+            React.createElement('div', { style: treeStyles.unlinkedName },
+              getDisplayName(person) + ' ' + person.lastName
             )
           )
         )
@@ -1282,16 +2028,17 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
               )
         ),
         
-        React.createElement('h2', { style: treeStyles.modalName }, 
-          (p.salutation && p.salutation !== 'Other' ? p.salutation + ' ' : '') + p.fullName
-        ),
+        React.createElement('h2', { style: treeStyles.modalName }, p.fullName),
         p.nickname && React.createElement('p', { style: treeStyles.modalNickname }, '"' + p.nickname + '"'),
         p.relation && React.createElement('span', { style: treeStyles.modalBadge }, p.relation),
         
         React.createElement('div', { style: treeStyles.modalRelations },
           p.fatherName && React.createElement('p', null, '👨 Father: ', React.createElement('strong', null, p.fatherName)),
           p.motherName && React.createElement('p', null, '👩 Mother: ', React.createElement('strong', null, p.motherName)),
-          data?.spouse && React.createElement('p', null, '❤️ Spouse: ', React.createElement('strong', null, data.spouse)),
+          data?.spouses?.length > 0 && React.createElement('p', null, 
+            '❤️ Spouse' + (data.spouses.length > 1 ? 's' : '') + ': ', 
+            React.createElement('strong', null, data.spouses.join(', '))
+          ),
           siblings.length > 0 && React.createElement('p', null, '👫 Siblings: ', React.createElement('strong', null, siblings.map(s => s.firstName).join(', '))),
           data?.children?.length > 0 && React.createElement('p', null, '👶 Children: ', React.createElement('strong', null, 
             data.children.map(c => familyData.people[c]?.firstName || c).join(', ')
@@ -1320,9 +2067,12 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
         members.length + ' members • Tap anyone to see details'
       ),
       isAdmin && React.createElement('p', { style: treeStyles.adminHint }, 
-        '👆 Use ← → buttons to reorder siblings'
+        '👆 Use ← → buttons to reorder'
       )
     ),
+
+    // Unlinked section at top (if admin chose)
+    unlinkedPosition === 'top' && renderUnlinkedSection(),
 
     // Tree
     members.length === 0
@@ -1333,25 +2083,20 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       : React.createElement('div', { style: treeStyles.treeWrapper, className: 'tree-wrapper' },
           React.createElement('div', { style: treeStyles.treeScroll, className: 'tree-scroll' },
             React.createElement('div', { style: treeStyles.tree, className: 'tree' },
-              familyData.roots.length === 0
+              familyData.roots.length === 0 && familyData.unlinked.length === members.length
                 ? React.createElement('div', { style: treeStyles.noRoots },
-                    React.createElement('p', null, 'Add parent information to connect the tree'),
-                    React.createElement('div', { style: treeStyles.unconnectedList },
-                      members.map(m => 
-                        React.createElement('div', { 
-                          key: m.id,
-                          style: treeStyles.unconnectedCard,
-                          onClick: () => setSelectedPerson(m)
-                        },
-                          React.createElement('span', null, getDisplayName(m) + ' ' + m.lastName)
-                        )
-                      )
+                    React.createElement('p', null, '👆 Add parent information to build the tree'),
+                    React.createElement('p', { style: { fontSize: '13px', marginTop: '8px' } }, 
+                      'Select parents when adding members to connect them'
                     )
                   )
                 : familyData.roots.map(root => renderFamilyUnit(root, 0, new Set()))
             )
           )
         ),
+
+    // Unlinked section at bottom (default)
+    unlinkedPosition === 'bottom' && renderUnlinkedSection(),
 
     // Modal
     renderModal()
@@ -1398,6 +2143,7 @@ const treeStyles = {
     borderRadius: '16px',
     padding: '24px',
     boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
+    marginBottom: '24px',
   },
   treeScroll: {
     overflowX: 'auto',
@@ -1414,64 +2160,79 @@ const treeStyles = {
   noRoots: {
     textAlign: 'center',
     color: '#7a8a82',
+    padding: '40px',
   },
-  unconnectedList: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: '12px',
-    marginTop: '20px',
-  },
-  unconnectedCard: {
-    padding: '12px 20px',
-    backgroundColor: '#f0f7f4',
-    borderRadius: '10px',
-    cursor: 'pointer',
-    fontSize: '14px',
-    color: '#2d4a3e',
-  },
-  // Family unit
+  // Family unit with spacing
   familyUnit: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    padding: '0 10px', // Spacing between family units
   },
   parentsRow: {
     display: 'flex',
-    alignItems: 'center',
+    alignItems: 'flex-end', // Align to bottom for swap buttons
     justifyContent: 'center',
+    gap: '0',
   },
   spouseConnector: {
     display: 'flex',
     alignItems: 'center',
-    padding: '0 2px',
+    padding: '0 4px',
+    marginBottom: '20px', // Align with card bottom
   },
   spouseLine: {
-    width: '20px',
+    width: '25px',
     height: '3px',
     backgroundColor: '#c9a959',
     borderRadius: '2px',
   },
-  // Person card
+  // Person card wrapper for swap buttons
+  personCardWrapper: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  swapBtns: {
+    display: 'flex',
+    gap: '4px',
+    marginBottom: '4px',
+    height: '24px',
+  },
+  swapBtn: {
+    width: '22px',
+    height: '22px',
+    borderRadius: '50%',
+    border: '1px solid #ccc',
+    backgroundColor: '#fff',
+    cursor: 'pointer',
+    fontSize: '11px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#666',
+  },
+  // Person card with spacing
   personCard: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '10px 8px',
+    padding: '12px 10px',
     backgroundColor: '#fafafa',
     borderRadius: '12px',
     border: '2px solid #e0e0e0',
     cursor: 'pointer',
     transition: 'all 0.2s',
-    minWidth: '85px',
-    maxWidth: '110px',
+    minWidth: '90px',
+    maxWidth: '120px',
+    margin: '0 5px', // Spacing between cards
   },
   personPhoto: {
     width: '50px',
     height: '50px',
     borderRadius: '50%',
     overflow: 'hidden',
-    marginBottom: '6px',
+    marginBottom: '8px',
     border: '3px solid #2d4a3e',
     backgroundColor: '#2d4a3e',
   },
@@ -1509,11 +2270,12 @@ const treeStyles = {
     fontStyle: 'italic',
     marginTop: '2px',
   },
-  // Children section - LINES PROPERLY CONNECTED
+  // Children section
   childrenSection: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    marginTop: '5px',
   },
   verticalLine: {
     width: '3px',
@@ -1530,7 +2292,6 @@ const treeStyles = {
     flexDirection: 'column',
     alignItems: 'center',
   },
-  // Connector that forms the T-junction for each child
   connectorWrapper: {
     display: 'flex',
     alignItems: 'flex-start',
@@ -1540,7 +2301,7 @@ const treeStyles = {
     flex: 1,
     height: '3px',
     backgroundColor: '#c9a959',
-    minWidth: '20px',
+    minWidth: '15px',
   },
   verticalConnector: {
     width: '3px',
@@ -1548,24 +2309,84 @@ const treeStyles = {
     backgroundColor: '#c9a959',
     flexShrink: 0,
   },
-  // Reorder buttons
   reorderBtns: {
     display: 'flex',
     gap: '4px',
     marginBottom: '4px',
   },
   reorderBtn: {
-    width: '24px',
-    height: '24px',
+    width: '22px',
+    height: '22px',
     borderRadius: '50%',
-    border: '1px solid #ddd',
+    border: '1px solid #ccc',
     backgroundColor: 'white',
     cursor: 'pointer',
-    fontSize: '12px',
+    fontSize: '11px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     color: '#666',
+  },
+  // Unlinked section
+  unlinkedSection: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: '16px',
+    padding: '20px',
+    marginBottom: '24px',
+    border: '2px dashed #ddd',
+  },
+  unlinkedHeader: {
+    textAlign: 'center',
+    marginBottom: '16px',
+  },
+  unlinkedTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#7a8a82',
+  },
+  unlinkedHint: {
+    fontSize: '13px',
+    color: '#9a9a9a',
+    margin: '8px 0',
+  },
+  positionToggle: {
+    padding: '6px 14px',
+    backgroundColor: '#e9ecef',
+    border: 'none',
+    borderRadius: '8px',
+    fontSize: '12px',
+    cursor: 'pointer',
+    color: '#495057',
+    marginTop: '8px',
+  },
+  unlinkedGrid: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: '12px',
+  },
+  unlinkedCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '10px 16px',
+    backgroundColor: 'white',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    border: '1px solid #e0e0e0',
+  },
+  unlinkedPhoto: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    backgroundColor: '#2d4a3e',
+    flexShrink: 0,
+  },
+  unlinkedName: {
+    fontSize: '13px',
+    color: '#2d4a3e',
+    fontWeight: 500,
   },
   // Modal
   modalOverlay: {
