@@ -52,6 +52,7 @@ function FamilyWebsite() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [notification, setNotification] = useState(null);
+  const [treeSettings, setTreeSettings] = useState({ childOrder: {}, spouseOrder: {} });
 
   // Load data from Firebase
   useEffect(() => {
@@ -85,11 +86,32 @@ function FamilyWebsite() {
         setPendingMembers(pendingData);
       });
 
+    // Load tree settings
+    const unsubscribeSettings = window.db.collection('settings').doc('treeOrder')
+      .onSnapshot((doc) => {
+        if (doc.exists) {
+          setTreeSettings(doc.data());
+        }
+      }, (error) => {
+        console.error('Error loading tree settings:', error);
+      });
+
     return () => {
       unsubscribeMembers();
       unsubscribePending();
+      unsubscribeSettings();
     };
   }, []);
+
+  // Save tree order settings to Firebase
+  const saveTreeSettings = async (newSettings) => {
+    try {
+      setTreeSettings(newSettings);
+      await window.db.collection('settings').doc('treeOrder').set(newSettings);
+    } catch (error) {
+      console.error('Error saving tree settings:', error);
+    }
+  };
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -206,7 +228,9 @@ function FamilyWebsite() {
       currentPage === 'tree' && React.createElement(FamilyTreePage, {
         members: members,
         isAdmin: isAdmin,
-        onEditMember: editMember
+        onEditMember: editMember,
+        treeSettings: treeSettings,
+        onSaveTreeSettings: saveTreeSettings
       }),
       
       currentPage === 'admin' && React.createElement(AdminPage, {
@@ -1616,11 +1640,49 @@ function MemberModal({ member, onClose }) {
 // ============================================
 // FAMILY TREE PAGE - Hierarchical Tree Layout
 // ============================================
-function FamilyTreePage({ members, onEditMember, isAdmin }) {
+function FamilyTreePage({ members, onEditMember, isAdmin, treeSettings = {}, onSaveTreeSettings }) {
   const [selectedPerson, setSelectedPerson] = useState(null);
-  const [childOrder, setChildOrder] = useState({});
-  const [spouseOrder, setSpouseOrder] = useState({});
-  const [unlinkedPosition, setUnlinkedPosition] = useState('bottom'); // 'top' or 'bottom'
+  const [unlinkedPosition, setUnlinkedPosition] = useState('bottom');
+  
+  // Use settings from props (Firebase) as initial state
+  const childOrder = treeSettings.childOrder || {};
+  const spouseOrder = treeSettings.spouseOrder || {};
+  const coupleOrder = treeSettings.coupleOrder || {}; // Track which spouse appears first
+
+  // Save helper
+  const saveSettings = (updates) => {
+    if (onSaveTreeSettings) {
+      onSaveTreeSettings({
+        ...treeSettings,
+        ...updates
+      });
+    }
+  };
+
+  // Swap children order and save to Firebase
+  const swapChildren = (parentKey, childrenList, idx1, idx2) => {
+    const newOrder = [...childrenList];
+    [newOrder[idx1], newOrder[idx2]] = [newOrder[idx2], newOrder[idx1]];
+    saveSettings({
+      childOrder: { ...childOrder, [parentKey]: newOrder }
+    });
+  };
+
+  // Swap couple order (which person appears on left)
+  const swapCouple = (personKey, spouseName) => {
+    // Toggle: if personKey is primary, make spouse primary; if spouse is primary, make person primary
+    const currentPrimary = coupleOrder[personKey] || coupleOrder[spouseName];
+    const newPrimary = currentPrimary === spouseName ? personKey : spouseName;
+    
+    // Store the primary person for this couple
+    saveSettings({
+      coupleOrder: { 
+        ...coupleOrder, 
+        [personKey]: newPrimary,
+        [spouseName]: newPrimary
+      }
+    });
+  };
 
   // Build family data structure
   const familyData = useMemo(() => {
@@ -1631,14 +1693,13 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       people[member.fullName] = {
         ...member,
         children: [],
-        spouses: [], // Support multiple spouses
+        spouses: [],
         isLinked: false
       };
     });
 
     // Second pass: establish relationships
     members.forEach(member => {
-      // Track children - this links both parent and child
       if (member.fatherName && people[member.fatherName]) {
         if (!people[member.fatherName].children.includes(member.fullName)) {
           people[member.fatherName].children.push(member.fullName);
@@ -1654,7 +1715,6 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
         people[member.motherName].isLinked = true;
       }
       
-      // Spouse relationships
       if (member.spouseName && people[member.spouseName]) {
         if (!people[member.fullName].spouses.includes(member.spouseName)) {
           people[member.fullName].spouses.push(member.spouseName);
@@ -1667,7 +1727,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       }
     });
 
-    // Infer spouse from shared children (support multiple)
+    // Infer spouse from shared children
     members.forEach(member => {
       if (member.fatherName && member.motherName && 
           people[member.fatherName] && people[member.motherName]) {
@@ -1680,7 +1740,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
       }
     });
 
-    // Find root people (no parents in system, but has children or is linked)
+    // Find roots and unlinked
     const roots = [];
     const processedAsSpouse = new Set();
     const unlinked = [];
@@ -1690,12 +1750,10 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
                                  (person.motherName && people[person.motherName]);
       
       if (!hasParentInSystem) {
-        // Check if this person has any connections (children or is someone's spouse)
         const hasConnections = person.children.length > 0 || person.spouses.length > 0;
         
         if (hasConnections && !processedAsSpouse.has(person.fullName)) {
           roots.push(person);
-          // Mark all spouses as processed
           person.spouses.forEach(spouseName => {
             processedAsSpouse.add(spouseName);
           });
@@ -1708,187 +1766,112 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     return { people, roots, unlinked };
   }, [members]);
 
-  // Swap children order
-  const swapChildren = (parentKey, idx1, idx2) => {
-    setChildOrder(prev => {
-      const currentOrder = prev[parentKey] || [];
-      const newOrder = [...currentOrder];
-      [newOrder[idx1], newOrder[idx2]] = [newOrder[idx2], newOrder[idx1]];
-      return { ...prev, [parentKey]: newOrder };
-    });
-  };
-
-  // Swap spouse order
-  const swapSpouses = (personKey, idx1, idx2) => {
-    setSpouseOrder(prev => {
-      const currentOrder = prev[personKey] || [];
-      const newOrder = [...currentOrder];
-      [newOrder[idx1], newOrder[idx2]] = [newOrder[idx2], newOrder[idx1]];
-      return { ...prev, [personKey]: newOrder };
-    });
-  };
-
-  // Get ordered children
+  // Get ordered children using saved order
   const getOrderedChildren = (childrenNames, parentKey) => {
-    const order = childOrder[parentKey];
-    if (!order || order.length === 0) return childrenNames;
+    const savedOrder = childOrder[parentKey];
+    if (!savedOrder || savedOrder.length === 0) return childrenNames;
+    
     return [...childrenNames].sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
+      const idxA = savedOrder.indexOf(a);
+      const idxB = savedOrder.indexOf(b);
       if (idxA === -1 && idxB === -1) return 0;
       if (idxA === -1) return 1;
       if (idxB === -1) return -1;
       return idxA - idxB;
     });
-  };
-
-  // Get ordered spouses
-  const getOrderedSpouses = (spouseNames, personKey) => {
-    const order = spouseOrder[personKey];
-    if (!order || order.length === 0) return spouseNames;
-    return [...spouseNames].sort((a, b) => {
-      const idxA = order.indexOf(a);
-      const idxB = order.indexOf(b);
-      if (idxA === -1 && idxB === -1) return 0;
-      if (idxA === -1) return 1;
-      if (idxB === -1) return -1;
-      return idxA - idxB;
-    });
-  };
-
-  // Initialize orders
-  const initChildOrder = (childrenNames, parentKey) => {
-    if (!childOrder[parentKey] && childrenNames.length > 0) {
-      setChildOrder(prev => ({ ...prev, [parentKey]: childrenNames }));
-    }
-  };
-
-  const initSpouseOrder = (spouseNames, personKey) => {
-    if (!spouseOrder[personKey] && spouseNames.length > 0) {
-      setSpouseOrder(prev => ({ ...prev, [personKey]: spouseNames }));
-    }
   };
 
   // Get display name with salutation
   const getDisplayName = (person) => {
-    if (person.salutation && person.salutation !== 'None') {
+    if (person.salutation && person.salutation !== 'None' && person.salutation !== 'Other') {
       return person.salutation + ' ' + person.firstName;
     }
     return person.firstName;
   };
 
   // Person card component
-  const PersonCard = ({ person, onClick, showSwap, onSwapLeft, onSwapRight, isFirst, isLast }) => {
-    return React.createElement('div', { style: treeStyles.personCardWrapper },
-      // Swap buttons for admin
-      isAdmin && showSwap && React.createElement('div', { style: treeStyles.swapBtns },
-        !isFirst && React.createElement('button', {
-          style: treeStyles.swapBtn,
-          onClick: (e) => { e.stopPropagation(); onSwapLeft && onSwapLeft(); },
-          title: 'Move left'
-        }, '←'),
-        !isLast && React.createElement('button', {
-          style: treeStyles.swapBtn,
-          onClick: (e) => { e.stopPropagation(); onSwapRight && onSwapRight(); },
-          title: 'Move right'
-        }, '→')
+  const PersonCard = ({ person, onClick }) => {
+    return React.createElement('div', {
+      className: 'tree-person',
+      style: treeStyles.personCard,
+      onClick: () => onClick(person)
+    },
+      React.createElement('div', { style: treeStyles.personPhoto },
+        person.photo
+          ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
+          : React.createElement('div', { style: treeStyles.personInitials },
+              (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
+            )
       ),
-      React.createElement('div', {
-        className: 'tree-person',
-        style: treeStyles.personCard,
-        onClick: () => onClick(person)
-      },
-        React.createElement('div', { style: treeStyles.personPhoto },
-          person.photo
-            ? React.createElement('img', { src: person.photo, style: treeStyles.personPhotoImg })
-            : React.createElement('div', { style: treeStyles.personInitials },
-                (person.firstName?.[0] || '') + (person.lastName?.[0] || '')
-              )
-        ),
-        React.createElement('div', { style: treeStyles.personName },
-          getDisplayName(person)
-        ),
-        React.createElement('div', { style: treeStyles.personLastName },
-          person.lastName
-        ),
-        person.nickname && React.createElement('div', { style: treeStyles.personNickname },
-          person.nickname
-        )
+      React.createElement('div', { style: treeStyles.personName },
+        getDisplayName(person)
+      ),
+      React.createElement('div', { style: treeStyles.personLastName },
+        person.lastName
+      ),
+      person.nickname && React.createElement('div', { style: treeStyles.personNickname },
+        person.nickname
       )
     );
   };
 
-  // Render a family unit (person + spouses + their children)
+  // Render a family unit
   const renderFamilyUnit = (person, depth = 0, rendered = new Set()) => {
     if (!person || rendered.has(person.fullName)) return null;
     rendered.add(person.fullName);
     
-    // Get ordered spouses
-    const orderedSpouses = getOrderedSpouses(person.spouses || [], person.fullName)
-      .map(name => familyData.people[name])
-      .filter(s => s && !rendered.has(s.fullName));
+    // Get first spouse for the couple display
+    const firstSpouse = person.spouses.length > 0 ? familyData.people[person.spouses[0]] : null;
+    if (firstSpouse) rendered.add(firstSpouse.fullName);
     
-    // Mark spouses as rendered
-    orderedSpouses.forEach(s => rendered.add(s.fullName));
+    // Determine who appears on left based on coupleOrder
+    let leftPerson = person;
+    let rightPerson = firstSpouse;
     
-    // Initialize spouse order
-    if (orderedSpouses.length > 0 && !spouseOrder[person.fullName]) {
-      setTimeout(() => initSpouseOrder(person.spouses, person.fullName), 0);
+    if (firstSpouse) {
+      const savedPrimary = coupleOrder[person.fullName] || coupleOrder[firstSpouse.fullName];
+      if (savedPrimary === firstSpouse.fullName) {
+        leftPerson = firstSpouse;
+        rightPerson = person;
+      }
     }
     
-    // Get unique children from person and all spouses
+    // Get unique children
     const childrenNames = new Set(person.children || []);
-    orderedSpouses.forEach(spouse => {
-      (spouse.children || []).forEach(c => childrenNames.add(c));
-    });
+    if (firstSpouse) {
+      (firstSpouse.children || []).forEach(c => childrenNames.add(c));
+    }
     
     const parentKey = person.fullName;
     const orderedChildrenNames = getOrderedChildren(Array.from(childrenNames), parentKey);
-    
-    if (orderedChildrenNames.length > 0 && !childOrder[parentKey]) {
-      setTimeout(() => initChildOrder(orderedChildrenNames, parentKey), 0);
-    }
     
     const children = orderedChildrenNames
       .map(name => familyData.people[name])
       .filter(child => child && !rendered.has(child.fullName));
 
     const hasMultipleChildren = children.length > 1;
-    const hasMultipleSpouses = orderedSpouses.length > 1;
 
     return React.createElement('div', { 
       key: person.fullName,
       className: 'family-unit',
       style: treeStyles.familyUnit 
     },
-      // Parents row (person + spouses)
+      // Couple swap button (admin only)
+      isAdmin && rightPerson && React.createElement('div', { style: treeStyles.coupleSwapRow },
+        React.createElement('button', {
+          style: treeStyles.coupleSwapBtn,
+          onClick: (e) => { e.stopPropagation(); swapCouple(person.fullName, firstSpouse.fullName); },
+          title: 'Swap couple order'
+        }, '⇄ Swap')
+      ),
+      
+      // Parents row
       React.createElement('div', { style: treeStyles.parentsRow, className: 'parents-row' },
-        // Main person
-        React.createElement(PersonCard, { 
-          person, 
-          onClick: setSelectedPerson,
-          showSwap: false
-        }),
-        
-        // Spouses with connectors
-        orderedSpouses.map((spouse, idx) => 
-          React.createElement(React.Fragment, { key: spouse.fullName },
-            // Spouse connector line
-            React.createElement('div', { style: treeStyles.spouseConnector },
-              React.createElement('div', { style: treeStyles.spouseLine })
-            ),
-            // Spouse card with reorder buttons
-            React.createElement(PersonCard, {
-              person: spouse,
-              onClick: setSelectedPerson,
-              showSwap: hasMultipleSpouses,
-              isFirst: idx === 0,
-              isLast: idx === orderedSpouses.length - 1,
-              onSwapLeft: () => swapSpouses(person.fullName, idx, idx - 1),
-              onSwapRight: () => swapSpouses(person.fullName, idx, idx + 1)
-            })
-          )
-        )
+        React.createElement(PersonCard, { person: leftPerson, onClick: setSelectedPerson }),
+        rightPerson && React.createElement('div', { style: treeStyles.spouseConnector },
+          React.createElement('div', { style: treeStyles.spouseLine })
+        ),
+        rightPerson && React.createElement(PersonCard, { person: rightPerson, onClick: setSelectedPerson })
       ),
       
       // Children section
@@ -1896,10 +1879,8 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
         style: treeStyles.childrenSection,
         className: 'children-section'
       },
-        // Vertical line down from parents center
         React.createElement('div', { style: treeStyles.verticalLine }),
         
-        // Children row with integrated connecting lines
         React.createElement('div', { style: treeStyles.childrenRow, className: 'children-row' },
           children.map((child, idx) => 
             React.createElement('div', { 
@@ -1907,7 +1888,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
               style: treeStyles.childBranch,
               className: 'child-branch'
             },
-              // Top connector: horizontal + vertical
+              // Connector lines
               hasMultipleChildren && React.createElement('div', { 
                 style: treeStyles.connectorWrapper 
               },
@@ -1926,26 +1907,30 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
                 })
               ),
               
-              // Single child - just vertical line
               !hasMultipleChildren && React.createElement('div', { 
                 style: { ...treeStyles.verticalConnector, height: '20px' } 
               }),
               
-              // Reorder buttons (admin only, multiple children)
+              // Reorder buttons (admin only)
               isAdmin && hasMultipleChildren && React.createElement('div', { style: treeStyles.reorderBtns },
                 idx > 0 && React.createElement('button', {
                   style: treeStyles.reorderBtn,
-                  onClick: (e) => { e.stopPropagation(); swapChildren(parentKey, idx, idx - 1); },
+                  onClick: (e) => { 
+                    e.stopPropagation(); 
+                    swapChildren(parentKey, orderedChildrenNames, idx, idx - 1); 
+                  },
                   title: 'Move left'
                 }, '←'),
                 idx < children.length - 1 && React.createElement('button', {
                   style: treeStyles.reorderBtn,
-                  onClick: (e) => { e.stopPropagation(); swapChildren(parentKey, idx, idx + 1); },
+                  onClick: (e) => { 
+                    e.stopPropagation(); 
+                    swapChildren(parentKey, orderedChildrenNames, idx, idx + 1); 
+                  },
                   title: 'Move right'
                 }, '→')
               ),
               
-              // Recursively render child's family
               renderFamilyUnit(child, depth + 1, rendered)
             )
           )
@@ -1954,7 +1939,7 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
     );
   };
 
-  // Render unlinked people section
+  // Render unlinked section
   const renderUnlinkedSection = () => {
     if (familyData.unlinked.length === 0) return null;
     
@@ -2060,21 +2045,18 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
   };
 
   return React.createElement('div', { style: treeStyles.page, className: 'tree-page' },
-    // Header
     React.createElement('div', { style: treeStyles.header },
       React.createElement('h1', { style: treeStyles.title }, '🌳 Family Tree'),
       React.createElement('p', { style: treeStyles.subtitle }, 
         members.length + ' members • Tap anyone to see details'
       ),
       isAdmin && React.createElement('p', { style: treeStyles.adminHint }, 
-        '👆 Use ← → buttons to reorder'
+        '👆 Use buttons to reorder siblings and swap couples'
       )
     ),
 
-    // Unlinked section at top (if admin chose)
     unlinkedPosition === 'top' && renderUnlinkedSection(),
 
-    // Tree
     members.length === 0
       ? React.createElement('div', { style: treeStyles.empty },
           React.createElement('p', null, '🌱 No family members yet'),
@@ -2085,20 +2067,14 @@ function FamilyTreePage({ members, onEditMember, isAdmin }) {
             React.createElement('div', { style: treeStyles.tree, className: 'tree' },
               familyData.roots.length === 0 && familyData.unlinked.length === members.length
                 ? React.createElement('div', { style: treeStyles.noRoots },
-                    React.createElement('p', null, '👆 Add parent information to build the tree'),
-                    React.createElement('p', { style: { fontSize: '13px', marginTop: '8px' } }, 
-                      'Select parents when adding members to connect them'
-                    )
+                    React.createElement('p', null, '👆 Add parent information to build the tree')
                   )
                 : familyData.roots.map(root => renderFamilyUnit(root, 0, new Set()))
             )
           )
         ),
 
-    // Unlinked section at bottom (default)
     unlinkedPosition === 'bottom' && renderUnlinkedSection(),
-
-    // Modal
     renderModal()
   );
 }
@@ -2162,55 +2138,41 @@ const treeStyles = {
     color: '#7a8a82',
     padding: '40px',
   },
-  // Family unit with spacing
+  // Family unit
   familyUnit: {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    padding: '0 10px', // Spacing between family units
+    padding: '0 15px', // Spacing between family units
+  },
+  coupleSwapRow: {
+    marginBottom: '6px',
+  },
+  coupleSwapBtn: {
+    padding: '4px 10px',
+    fontSize: '11px',
+    backgroundColor: '#f0f7f4',
+    border: '1px solid #c9a959',
+    borderRadius: '12px',
+    cursor: 'pointer',
+    color: '#2d4a3e',
   },
   parentsRow: {
     display: 'flex',
-    alignItems: 'flex-end', // Align to bottom for swap buttons
+    alignItems: 'center',
     justifyContent: 'center',
     gap: '0',
   },
   spouseConnector: {
     display: 'flex',
     alignItems: 'center',
-    padding: '0 4px',
-    marginBottom: '20px', // Align with card bottom
+    padding: '0 6px',
   },
   spouseLine: {
     width: '25px',
     height: '3px',
     backgroundColor: '#c9a959',
     borderRadius: '2px',
-  },
-  // Person card wrapper for swap buttons
-  personCardWrapper: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-  },
-  swapBtns: {
-    display: 'flex',
-    gap: '4px',
-    marginBottom: '4px',
-    height: '24px',
-  },
-  swapBtn: {
-    width: '22px',
-    height: '22px',
-    borderRadius: '50%',
-    border: '1px solid #ccc',
-    backgroundColor: '#fff',
-    cursor: 'pointer',
-    fontSize: '11px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#666',
   },
   // Person card with spacing
   personCard: {
@@ -2225,7 +2187,7 @@ const treeStyles = {
     transition: 'all 0.2s',
     minWidth: '90px',
     maxWidth: '120px',
-    margin: '0 5px', // Spacing between cards
+    margin: '0 8px', // SPACING between cards
   },
   personPhoto: {
     width: '50px',
@@ -2291,6 +2253,7 @@ const treeStyles = {
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
+    padding: '0 5px', // Spacing between child branches
   },
   connectorWrapper: {
     display: 'flex',
@@ -2301,7 +2264,7 @@ const treeStyles = {
     flex: 1,
     height: '3px',
     backgroundColor: '#c9a959',
-    minWidth: '15px',
+    minWidth: '20px',
   },
   verticalConnector: {
     width: '3px',
@@ -2312,16 +2275,16 @@ const treeStyles = {
   reorderBtns: {
     display: 'flex',
     gap: '4px',
-    marginBottom: '4px',
+    marginBottom: '6px',
   },
   reorderBtn: {
-    width: '22px',
-    height: '22px',
+    width: '24px',
+    height: '24px',
     borderRadius: '50%',
     border: '1px solid #ccc',
     backgroundColor: 'white',
     cursor: 'pointer',
-    fontSize: '11px',
+    fontSize: '12px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -2388,7 +2351,7 @@ const treeStyles = {
     color: '#2d4a3e',
     fontWeight: 500,
   },
-  // Modal
+  // Modal styles
   modalOverlay: {
     position: 'fixed',
     top: 0,
